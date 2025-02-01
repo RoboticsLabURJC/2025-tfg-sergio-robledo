@@ -57,7 +57,7 @@ plugins:
 
 author:
   name   : "Sergio Robledo Sarrión"
-  avatar : "/assets/images/bio-photo.jpg"
+  avatar : "/assets/images/bio-photo.jpeg"
   bio    : "Ingeniería Robótica Software en la Universidad Rey Juan Carlos"
   links:
     - label: "GitHub"
