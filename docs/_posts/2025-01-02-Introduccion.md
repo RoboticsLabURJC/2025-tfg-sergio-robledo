@@ -33,7 +33,12 @@ El proyecto contará con una serie de fases:
 
 5. Comprobación de efectividad en escenario real y pruebas de robustez para la precisión del modelo.
 
+--- 
 
-![Simmulador Carla](/images/intro_images/carla.jpeg)
+<figure class="align-center" style="max-width: 100%">
+  <img src="{{ site.url }}{{ site.baseurl }}/assets/images/intro_images/carla.jpeg" alt="Simulador Carla">
+</figure>
 
-![AWS DeepRacer](/images/intro_images/deepracer.jpeg)
+<figure class="align-center" style="max-width: 100%">
+  <img src="{{ site.url }}{{ site.baseurl }}/assets/images/intro_images/deepracer.jpg" alt="AWS DeepRacer">
+</figure>
