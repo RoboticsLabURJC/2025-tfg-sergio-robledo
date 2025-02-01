@@ -36,9 +36,9 @@ El proyecto contará con una serie de fases:
 --- 
 
 <figure class="align-center" style="max-width: 100%">
-  <img src="{{ site.url }}/docs/_posts/images/intro_images/carla.jpeg" alt="Simulador Carla">
+  <img src="{{ site.url }}{{ site.baseurl }}/images/intro_images/carla.jpeg" alt="Simulador Carla">
 </figure>
 
 <figure class="align-center" style="max-width: 100%">
-  <img src="{{ site.url }}/docs/_posts/images/intro_images/deepracer.jpg" alt="AWS DeepRacer">
+  <img src="{{ site.url }}{{ site.baseurl }}/images/intro_images/deepracer.jpg" alt="AWS DeepRacer">
 </figure>
