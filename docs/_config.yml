@@ -62,13 +62,13 @@ author:
   links:
     - label: "GitHub"
       icon: "fab fa-fw fa-github"
-      url: "https://github.com/larapoves"
+      url: "https://github.com/srobledo2021"
 footer:
   links:
    
     - label: "GitHub"
       icon: "fab fa-fw fa-github"
-      url: "https://github.com/larapoves"
+      url: "https://github.com/srobledo2021"
 
 defaults:
   # _posts
