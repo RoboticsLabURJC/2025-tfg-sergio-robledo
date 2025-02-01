@@ -15,9 +15,9 @@
 # in the templates via {{ site.myvariable }}.
 
 title: ROBOTICS LAB URJC
-email: poveslara@gmail.com
+email: sergiorobsar@gmail.com
 description: "Bitácora para mi TFG"
-github_username: larapoves
+github_username: srobledo2021
 minimal_mistakes_skin: dark
 search: true
 logo: ./logo.png
@@ -56,7 +56,7 @@ plugins:
   - jekyll-include-cache
 
 author:
-  name   : "Lara Poves Martínez"
+  name   : "Sergio Robledo Sarrión"
   avatar : "/assets/images/bio-photo.jpg"
   bio    : "Ingeniería Robótica Software en la Universidad Rey Juan Carlos"
   links:
