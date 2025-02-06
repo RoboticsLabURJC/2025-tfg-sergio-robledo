@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='utf-8'?>
+<OpenSCENARIO xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="OpenScenario.xsd">
+    <FileHeader description="dsc_scenario" author="blender_dsc" revMajor="1" revMinor="2" date="2025-02-05T18:09:37.091218"/>
+    <CatalogLocations>
+        <VehicleCatalog>
+            <Directory path="../catalogs/vehicles"/>
+        </VehicleCatalog>
+        <PedestrianCatalog>
+            <Directory path="../catalogs/pedestrians"/>
+        </PedestrianCatalog>
+    </CatalogLocations>
+    <RoadNetwork>
+        <LogicFile filepath="../xodr/bdsc_export.xodr"/>
+        <SceneGraphFile filepath="../models/static_scene/bdsc_export.fbx"/>
+    </RoadNetwork>
+    <Entities/>
+    <Storyboard>
+        <Init>
+            <Actions/>
+        </Init>
+        <Story name="story_act_empty">
+            <Act name="act_empty">
+                <ManeuverGroup name="empty" maximumExecutionCount="1">
+                    <Actors selectTriggeringEntities="false"/>
+                </ManeuverGroup>
+                <StartTrigger/>
+                <StopTrigger/>
+            </Act>
+        </Story>
+        <StopTrigger/>
+    </Storyboard>
+</OpenSCENARIO>

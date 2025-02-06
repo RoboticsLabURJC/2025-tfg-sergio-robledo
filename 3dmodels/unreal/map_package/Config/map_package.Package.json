@@ -1,0 +1,10 @@
+{
+    "props": [],
+    "maps": [
+        {
+            "name": "bdsc_export",
+            "path": "/Game/map_package/Maps/bdsc_export",
+            "use_carla_materials": true
+        }
+    ]
+}
