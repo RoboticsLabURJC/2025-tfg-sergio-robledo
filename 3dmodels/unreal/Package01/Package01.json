@@ -1,0 +1,12 @@
+{
+    "maps": [
+      {
+        "name": "RaceTrack",
+        "source": "./RaceTrack/RaceTrack.fbx",
+        "use_carla_materials": true,
+        "xodr": "./RaceTrack/RaceTrack.xodr"
+      }
+    ],
+    "props": [
+    ]
+  }
