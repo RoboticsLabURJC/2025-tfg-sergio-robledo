@@ -76,20 +76,24 @@ camera_thirdpers.listen(lambda image: process_image_thirdpers(image))
 
 # Waypoints definidos por el usuario
 waypoints = [
-    carla.Location(x=1.09, y=-0.39, z=0.01),
-    carla.Location(x=2.84, y=-0.64, z=0.00),
-    carla.Location(x=3.15, y=-1.11, z=0.00),
-    carla.Location(x=3.33, y=-1.82, z=0.02),
-    carla.Location(x=3.24, y=-2.50, z=0.00),
-    carla.Location(x=2.99, y=-3.37, z=0.00),
-    carla.Location(x=2.62, y=-4.79, z=0.03),
-    carla.Location(x=2.38, y=-6.35, z=0.02),
-    carla.Location(x=2.15, y=-6.72, z=0.01),
-    carla.Location(x=1.61, y=-6.98, z=0.00),
-    carla.Location(x=0.61, y=-6.26, z=0.03),
-    carla.Location(x=0.44, y=-5.38, z=0.01),
-    carla.Location(x=0.43, y=-4.15, z=0.04),
-    carla.Location(x=0.42, y=-1.75, z=0.00),
+    # carla.Location(x=1.63, y=-0.44, z=0.00),
+    # carla.Location(x=2.41, y=-0.52, z=0.00),
+    
+    # carla.Location(x=3.39, y=-1.66, z=0.00),
+    # carla.Location(x=3.42, y=-2.53, z=0.00),
+    # carla.Location(x=2.98, y=-3.81, z=0.00),
+    # carla.Location(x=2.51, y=-5.04, z=0.00),
+
+    # carla.Location(x=2.49, y=-6.1, z=0.00),
+
+    # carla.Location(x=0.67, y=-6.48, z=0.00),
+
+    # carla.Location(x=0.63, y=-5.13, z=0.00),
+    # carla.Location(x=0.33, y=-1.51, z=0.00),
+
+    carla.Location(x=0.55, y=-0.58, z=0.00),
+    carla.Location(x=0.76, y=-1.73, z=0.00),
+    carla.Location(x=0.59, y=-5.81, z=0.00),
 ]
 
 current_wp_index = 0
@@ -105,31 +109,44 @@ def get_steering(vehicle_transform, target_location):
     angle = math.atan2(det, dot)
     return max(min(angle, 1.0), -1.0)
 
+# Variables para suavizar dirección
+previous_steer = 0.0
+STEER_SMOOTHING = 0.2  # cuanto más alto, más suave (0.0 a 1.0)
+
+# Distancia más exigente para avanzar al siguiente waypoint
+TARGET_REACHED_DISTANCE = 1.0
+
 # Loop principal
 running = True
 clock = pygame.time.Clock()
 
 while running and current_wp_index < len(waypoints):
     vehicle_transform = vehicle.get_transform()
-    target = waypoints[current_wp_index]
     loc = vehicle_transform.location
-    print(f"📍 Ubicación actual: x={loc.x:.2f}, y={loc.y:.2f}, z={loc.z:.2f}")
-
+    target = waypoints[current_wp_index]
     distance = loc.distance(target)
 
-    if distance < TARGET_REACHED_DISTANCE:
-        print(f"✅ Waypoint {current_wp_index + 1} alcanzado.")
-        current_wp_index += 1
-        continue
+    print(f"📍 Ubicación: x={loc.x:.2f}, y={loc.y:.2f}, z={loc.z:.2f} | Objetivo: {current_wp_index + 1}/{len(waypoints)} | Distancia: {distance:.2f}m")
 
-    steer = get_steering(vehicle_transform, target)
-    control = carla.VehicleControl(throttle=0.4, steer=steer)
+    if distance < TARGET_REACHED_DISTANCE and current_wp_index < len(waypoints) - 1:
+        current_wp_index += 1
+        target = waypoints[current_wp_index]
+
+    # Calcular dirección deseada
+    steer_raw = get_steering(vehicle_transform, target)
+    steer = previous_steer * (1 - STEER_SMOOTHING) + steer_raw * STEER_SMOOTHING
+    previous_steer = steer
+
+    # Aceleración variable según curvatura
+    throttle = 0.5 if abs(steer) < 0.3 else 0.35
+
+    # Aplicar control
+    control = carla.VehicleControl(throttle=throttle, steer=steer)
     vehicle.apply_control(control)
 
+    # Eventos pygame
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+        if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
             running = False
 
     # Mostrar cámara frontal (pygame)
@@ -137,9 +154,9 @@ while running and current_wp_index < len(waypoints):
         window_front.blit(camera_img_front, (0, 0))
         pygame.display.update()
 
-    # Mostrar cámara trasera (OpenCV)
+    # Mostrar cámara tercera persona (OpenCV)
     if camera_img_thirdpers is not None:
-        cv2.imshow("Cámara Trasera", camera_img_thirdpers)
+        cv2.imshow("Cámara Tercera Persona", camera_img_thirdpers)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
