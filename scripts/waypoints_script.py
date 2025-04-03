@@ -23,9 +23,9 @@ world = client.get_world()
 
 # Configurar el clima
 weather = carla.WeatherParameters(
-    cloudiness=10.0,
+    cloudiness=80.0,
     precipitation=0.0,
-    sun_altitude_angle=10.0,
+    sun_altitude_angle=90.0,
     fog_density=0.0,
     wetness=0.0
 )
@@ -73,8 +73,9 @@ def process_image_front(image):
     camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
 
     # 🎨 Rango para amarillo (en RGB)
-    lower_yellow = np.array([200, 200, 0])   # R, G altos; B bajo
-    upper_yellow = np.array([255, 255, 150])
+    lower_yellow = np.array([180, 180, 50])    # R y G no tan altos, B un poco más alto
+    upper_yellow = np.array([255, 255, 200])   # Permitimos más azul para tonos claros
+
 
     # 🎨 Rango para blanco (en RGB)
     lower_white = np.array([200, 200, 200])
