@@ -66,8 +66,40 @@ def process_image_front(image):
     global camera_img_front
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    array = array[:, :, ::-1]
-    camera_img_front = pygame.surfarray.make_surface(array.swapaxes(0, 1))
+    bgr = array[:, :, ::-1]  # Convertimos de BGR a RGB
+    rgb = bgr.copy()
+
+    # Mostrar en Pygame (ventana frontal)
+    camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+
+    # 🎨 Rango para amarillo (en RGB)
+    lower_yellow = np.array([200, 200, 0])   # R, G altos; B bajo
+    upper_yellow = np.array([255, 255, 150])
+
+    # 🎨 Rango para blanco (en RGB)
+    lower_white = np.array([200, 200, 200])
+    upper_white = np.array([255, 255, 255])
+
+    # Crear máscaras
+    mask_yellow = cv2.inRange(rgb, lower_yellow, upper_yellow)
+    mask_white = cv2.inRange(rgb, lower_white, upper_white)
+
+    # Combinar máscaras
+    mask_combined = cv2.bitwise_or(mask_yellow, mask_white)
+
+    # Aplicar máscara a imagen original
+    result = cv2.bitwise_and(rgb, rgb, mask=mask_combined)
+
+    # 🪟 Mostrar imagen frontal original (convertida a BGR para que se vea bien en OpenCV)
+    cv2.imshow("Imagen RGB - Cámara Frontal", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+
+    # 🪟 Mostrar la imagen con solo líneas detectadas
+    cv2.imshow("Líneas Detectadas (Amarillo y Blanco)", cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
+
+
+
+    
+
 
 def process_image_thirdpers(image):
     global camera_img_thirdpers
@@ -80,24 +112,13 @@ camera_thirdpers.listen(lambda image: process_image_thirdpers(image))
 
 # Waypoints definidos por el usuario
 waypoints = [
-    # carla.Location(x=1.63, y=-0.44, z=0.00),
-    # carla.Location(x=2.41, y=-0.52, z=0.00),
-    
-    # carla.Location(x=3.39, y=-1.66, z=0.00),
-    # carla.Location(x=3.42, y=-2.53, z=0.00),
-    # carla.Location(x=2.98, y=-3.81, z=0.00),
-    # carla.Location(x=2.51, y=-5.04, z=0.00),
 
-    # carla.Location(x=2.49, y=-6.1, z=0.00),
+    carla.Location(x=2.54, y=-4.40, z=0.00),
+    carla.Location(x=2.77, y=-6.18, z=0.00),
+    carla.Location(x=1.67, y=-7.39, z=0.00),
+    carla.Location(x=0.10, y=-4.62, z=0.00),
+    carla.Location(x=0.29, y=0.53, z=0.00),
 
-    # carla.Location(x=0.67, y=-6.48, z=0.00),
-
-    # carla.Location(x=0.63, y=-5.13, z=0.00),
-    # carla.Location(x=0.33, y=-1.51, z=0.00),
-
-    carla.Location(x=0.55, y=-0.58, z=0.00),
-    carla.Location(x=0.76, y=-1.73, z=0.00),
-    carla.Location(x=0.59, y=-5.81, z=0.00),
 ]
 
 current_wp_index = 0
