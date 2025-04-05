@@ -65,20 +65,37 @@ last_error = 0.0
 Kp = 0.03
 Kd = 0.15
 
+
 def process_image_front(image):
     global camera_img_front, last_error
 
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    rgb = array[:, :, ::-1]
+    bgr = array[:, :, ::-1]  # Convertimos a RGB
+    rgb = bgr.copy()
 
     # Mostrar en Pygame
     camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
 
-    # 🎨 Filtro para blanco (RGB)
-    lower_white = np.array([200, 200, 200])
-    upper_white = np.array([255, 255, 255])
-    mask_white = cv2.inRange(rgb, lower_white, upper_white)
+    # 🎨 Convertir RGB a HSV
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+
+    # 🟨 Rango para amarillo en HSV
+    lower_yellow = np.array([18, 50, 150])
+    upper_yellow = np.array([40, 255, 255])
+
+    mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
+
+    # ⚪ Rango para blanco en HSV
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 30, 255])
+    mask_white = cv2.inRange(hsv, lower_white, upper_white)
+
+    # Combinar máscaras
+    mask_combined = cv2.bitwise_or(mask_yellow, mask_white)
+
+    # Aplicar máscara a imagen original
+    result = cv2.bitwise_and(rgb, rgb, mask=mask_combined)
 
     # ROI (parte baja de la imagen)
     height, width = mask_white.shape
@@ -88,8 +105,8 @@ def process_image_front(image):
     nonzero = cv2.findNonZero(roi)
 
     if nonzero is not None:
-        mean = np.mean(nonzero, axis=0)[0]  # (x, y)
-        line_center_x = mean[0]             # Promedio de todos los píxeles blancos
+        mean = np.mean(nonzero, axis=0)[0]
+        line_center_x = mean[0]
         image_center_x = width / 2
         error = image_center_x - line_center_x
 
@@ -98,22 +115,18 @@ def process_image_front(image):
         steer = Kp * error + Kd * derivative
         last_error = error
 
-        # Limitar giro
         steer = np.clip(steer, -1.0, 1.0)
-
-        # Aplicar control
         control = carla.VehicleControl(throttle=0.40, steer=steer)
         vehicle.apply_control(control)
 
-        print(f"[PD Carril Blanco] error={error:.2f}, steer={steer:.3f}")
+        print(f"[PD HSV Blanco] error={error:.2f}, steer={steer:.3f}")
     else:
-        print("⚠️ Líneas blancas no detectadas.")
-        vehicle.apply_control(carla.VehicleControl(throttle=0.4, steer=0.0))
+        print("⚠️ Línea blanca no detectada.")
+        vehicle.apply_control(carla.VehicleControl(throttle=0.40, steer=0.0))
 
-    # Mostrar imagen
-    cv2.imshow("Líneas Blancas Detectadas", mask_white)
-    cv2.imshow("RGB Frontal", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-
+    # Mostrar imagen original y resultado
+    cv2.imshow("Imagen RGB - Cámara Frontal", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+    cv2.imshow("Líneas Detectadas (Amarillo y Blanco - HSV)", cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
 
 def process_image_thirdpers(image):
     global camera_img_thirdpers
