@@ -66,24 +66,25 @@ def process_image_front(image):
     global camera_img_front
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    bgr = array[:, :, ::-1]  # Convertimos de BGR a RGB
+    bgr = array[:, :, ::-1]  # Convertimos a RGB
     rgb = bgr.copy()
 
     # Mostrar en Pygame (ventana frontal)
     camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
 
-    # 🎨 Rango para amarillo (en RGB)
-    lower_yellow = np.array([180, 180, 50])    # R y G no tan altos, B un poco más alto
-    upper_yellow = np.array([255, 255, 200])   # Permitimos más azul para tonos claros
+    # 🎨 Convertir RGB a HSV
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
+    # 🟨 Rango para amarillo en HSV
+    lower_yellow = np.array([18, 50, 150])
+    upper_yellow = np.array([40, 255, 255])
 
-    # 🎨 Rango para blanco (en RGB)
-    lower_white = np.array([200, 200, 200])
-    upper_white = np.array([255, 255, 255])
+    mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-    # Crear máscaras
-    mask_yellow = cv2.inRange(rgb, lower_yellow, upper_yellow)
-    mask_white = cv2.inRange(rgb, lower_white, upper_white)
+    # ⚪ Rango para blanco en HSV
+    lower_white = np.array([0, 0, 200])
+    upper_white = np.array([180, 30, 255])
+    mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
     # Combinar máscaras
     mask_combined = cv2.bitwise_or(mask_yellow, mask_white)
@@ -91,11 +92,9 @@ def process_image_front(image):
     # Aplicar máscara a imagen original
     result = cv2.bitwise_and(rgb, rgb, mask=mask_combined)
 
-    # 🪟 Mostrar imagen frontal original (convertida a BGR para que se vea bien en OpenCV)
+    # Mostrar imagen original y resultado
     cv2.imshow("Imagen RGB - Cámara Frontal", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
-
-    # 🪟 Mostrar la imagen con solo líneas detectadas
-    cv2.imshow("Líneas Detectadas (Amarillo y Blanco)", cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
+    cv2.imshow("Líneas Detectadas (Amarillo y Blanco - HSV)", cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
 
 
 
