@@ -58,51 +58,45 @@ camera_thirdpers = world.spawn_actor(camera_bp, transform_thirdpers, attach_to=v
 camera_img_front = None
 camera_img_thirdpers = None
 
+# PID para steer
+last_error_steer = 0.0
+integral_steer = 0.0
+Kp_steer = 0.1     # menos agresivo que 0.01 → más fluido en recta  
+Ki_steer = 0.001   # mantiene ayuda en curva larga, sin acumular demasiado  
+Kd_steer = 0.5     # más reactivo ante cambios bruscos
 
 
-# PD variables
-last_error = 0.0
-Kp = 0.03
-Kd = 0.15
-
+def map_virtual_to_real_throttle(virtual_throttle):
+    if virtual_throttle <= 0.6:
+        return np.interp(virtual_throttle, [0.0, 0.6], [0.0, 0.14])
+    else:
+        return np.interp(virtual_throttle, [0.6, 1.0], [0.14, 0.54])
 
 def process_image_front(image):
-    global camera_img_front, last_error
+    global camera_img_front, last_error_steer, integral_steer
 
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    bgr = array[:, :, ::-1]  # Convertimos a RGB
+    bgr = array[:, :, ::-1]
     rgb = bgr.copy()
 
-    # Mostrar en Pygame
     camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
-
-    # 🎨 Convertir RGB a HSV
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
-    # 🟨 Rango para amarillo en HSV
+    # Filtros HSV
     lower_yellow = np.array([18, 50, 150])
     upper_yellow = np.array([40, 255, 255])
-
     mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-    # ⚪ Rango para blanco en HSV
     lower_white = np.array([0, 0, 200])
     upper_white = np.array([180, 30, 255])
     mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
-    # Combinar máscaras
     mask_combined = cv2.bitwise_or(mask_yellow, mask_white)
-
-    # Aplicar máscara a imagen original
     result = cv2.bitwise_and(rgb, rgb, mask=mask_combined)
 
-    # ROI (parte baja de la imagen)
-    height, width = mask_white.shape
-    roi = mask_white[int(height * 0.6):int(height * 0.9), :]
-
-    # Detectar líneas blancas
-    nonzero = cv2.findNonZero(roi)
+    height, width = mask_combined.shape
+    nonzero = cv2.findNonZero(mask_combined)
 
     if nonzero is not None:
         mean = np.mean(nonzero, axis=0)[0]
@@ -110,21 +104,33 @@ def process_image_front(image):
         image_center_x = width / 2
         error = image_center_x - line_center_x
 
-        # Control PD
-        derivative = error - last_error
-        steer = Kp * error + Kd * derivative
-        last_error = error
+        # --- PID para STEER con anti-windup ---
+        integral_steer += error
+        integral_steer = np.clip(integral_steer, -1, 1)
 
+        derivative_steer = error - last_error_steer
+        steer = (Kp_steer * error +
+                 Ki_steer * integral_steer +
+                 Kd_steer * derivative_steer)
+        last_error_steer = error
         steer = np.clip(steer, -1.0, 1.0)
-        control = carla.VehicleControl(throttle=0.40, steer=steer)
+
+        # --- Throttle fijo virtual ---
+        virtual_throttle = 0.85
+        real_throttle = map_virtual_to_real_throttle(virtual_throttle)
+
+        control = carla.VehicleControl(throttle=real_throttle, steer=steer)
         vehicle.apply_control(control)
 
-        print(f"[PD HSV Blanco] error={error:.2f}, steer={steer:.3f}")
+        print(f"[PID Steer] error={error:.2f}, steer={steer:.3f}, "
+              f"throttle_virtual={virtual_throttle:.2f}, throttle_real={real_throttle:.3f}")
     else:
-        print("⚠️ Línea blanca no detectada.")
-        vehicle.apply_control(carla.VehicleControl(throttle=0.40, steer=0.0))
+        print("⚠️ Línea no detectada. Aplicando frenado suave.")
+        vehicle.apply_control(carla.VehicleControl(throttle=0.2, steer=0.0))
+        last_error_steer = 0
+        integral_steer = 0
 
-    # Mostrar imagen original y resultado
+    # Mostrar vistas
     cv2.imshow("Imagen RGB - Cámara Frontal", cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
     cv2.imshow("Líneas Detectadas (Amarillo y Blanco - HSV)", cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
 
