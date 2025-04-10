@@ -61,9 +61,15 @@ camera_img_thirdpers = None
 # PID para steer
 last_error_steer = 0.0
 integral_steer = 0.0
-Kp_steer = 0.1     # menos agresivo que 0.01 → más fluido en recta  
-Ki_steer = 0.001   # mantiene ayuda en curva larga, sin acumular demasiado  
-Kd_steer = 0.5     # más reactivo ante cambios bruscos
+Kp_steer = 0.16     # aún más agresivo en la corrección
+Ki_steer = 0.0012   # mantiene el giro en curvas largas
+Kd_steer = 0.85     # máxima reacción a curvas cerradas
+
+
+last_error_throttle = 0.0
+Kp_throttle = 0.004
+Kd_throttle = 0.015
+
 
 
 def map_virtual_to_real_throttle(virtual_throttle):
@@ -73,7 +79,7 @@ def map_virtual_to_real_throttle(virtual_throttle):
         return np.interp(virtual_throttle, [0.6, 1.0], [0.14, 0.54])
 
 def process_image_front(image):
-    global camera_img_front, last_error_steer, integral_steer
+    global camera_img_front, last_error_steer, integral_steer, last_error_throttle
 
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
@@ -96,11 +102,17 @@ def process_image_front(image):
     result = cv2.bitwise_and(rgb, rgb, mask=mask_combined)
 
     height, width = mask_combined.shape
-    nonzero = cv2.findNonZero(mask_combined)
+    # Reducimos la imagen al tercio horizontal del medio
+    third_w = width // 3
+    roi_mask = mask_combined[:, third_w:2*third_w]
+
+    # Buscar píxeles en esa zona
+    nonzero = cv2.findNonZero(roi_mask)
+
 
     if nonzero is not None:
         mean = np.mean(nonzero, axis=0)[0]
-        line_center_x = mean[0]
+        line_center_x = mean[0] + third_w  # corregimos el offset del recorte horizontal
         image_center_x = width / 2
         error = image_center_x - line_center_x
 
@@ -116,7 +128,16 @@ def process_image_front(image):
         steer = np.clip(steer, -1.0, 1.0)
 
         # --- Throttle fijo virtual ---
-        virtual_throttle = 0.85
+        # --- PD para THROTTLE virtual dinámico ---
+        abs_error = abs(error)
+        derivative_throttle = abs_error - last_error_throttle
+        last_error_throttle = abs_error
+
+        virtual_throttle = 1.0 - (Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+        virtual_throttle = np.clip(virtual_throttle, 0.5, 0.85)
+
+        real_throttle = map_virtual_to_real_throttle(virtual_throttle)
+
         real_throttle = map_virtual_to_real_throttle(virtual_throttle)
 
         control = carla.VehicleControl(throttle=real_throttle, steer=steer)
@@ -157,7 +178,9 @@ while running:
         pygame.display.update()
 
     if camera_img_thirdpers is not None:
-        cv2.imshow("Cámara Tercera Persona", camera_img_thirdpers)
+        big_view = cv2.resize(camera_img_thirdpers, (960, 720))  # o (1280, 960) si quieres aún más grande
+        cv2.imshow("Cámara Tercera Persona", big_view)
+
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         running = False
