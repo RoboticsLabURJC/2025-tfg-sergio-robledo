@@ -61,14 +61,17 @@ camera_img_thirdpers = None
 # PID para steer
 last_error_steer = 0.0
 integral_steer = 0.0
-Kp_steer = 0.16     # aún más agresivo en la corrección
-Ki_steer = 0.0012   # mantiene el giro en curvas largas
-Kd_steer = 0.85     # máxima reacción a curvas cerradas
+Kp_steer = 0.10      # respuesta proporcional moderada
+Ki_steer = 0.001     # mantiene suavidad en curvas largas
+Kd_steer = 0.55      # reactivo pero no brusco
 
 
 last_error_throttle = 0.0
-Kp_throttle = 0.004
-Kd_throttle = 0.015
+# Control del PID para velocidad (throttle)
+Kp_throttle = 0.007     # más sensible a curvas
+Kd_throttle = 0.01     # más suave ante cambios rápidos
+
+
 
 
 
@@ -134,7 +137,7 @@ def process_image_front(image):
         last_error_throttle = abs_error
 
         virtual_throttle = 1.0 - (Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
-        virtual_throttle = np.clip(virtual_throttle, 0.5, 0.85)
+        virtual_throttle = np.clip(virtual_throttle, 0.5, 1)
 
         real_throttle = map_virtual_to_real_throttle(virtual_throttle)
 
@@ -178,7 +181,7 @@ while running:
         pygame.display.update()
 
     if camera_img_thirdpers is not None:
-        big_view = cv2.resize(camera_img_thirdpers, (960, 720))  # o (1280, 960) si quieres aún más grande
+        big_view = cv2.resize(camera_img_thirdpers, (1200, 960))  # o (1280, 960) si quieres aún más grande
         cv2.imshow("Cámara Tercera Persona", big_view)
 
 
