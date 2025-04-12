@@ -35,7 +35,7 @@ world.set_weather(weather)
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 spawn_point = carla.Transform(
-    carla.Location(x=0.5, y=0.5, z=0.5),
+    carla.Location(x=0.5, y=0, z=0.5),
     carla.Rotation(yaw=0)
 )
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
