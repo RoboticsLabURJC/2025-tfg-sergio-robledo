@@ -64,21 +64,22 @@ camera_img_front = None
 camera_img_thirdpers = None
 
 # === PID Steer directo en píxeles ===
-integral_steer = 0
 last_error_steer = 0
 last_error_throttle = 0
+last_valid_error  = 0
 # PID Steer ajustado para errores en píxeles (más reactivo)
 # === PID Steer mucho más reactivo ===
-Kp_steer = 0.010    # más sensible al error (antes 0.0035)
-Ki_steer = 0.000005 # muy baja acumulación
-Kd_steer = 0.025    # reacción fuerte a cambios rápidos
+Kp_steer = 0.8
+Kd_steer = 1.2    
+Kp_throttle = 0.002   # proporcional: más error = menos throttle
+Kd_throttle = 0.005   # derivativo: suaviza frenazos bruscos
 
-# === PID Throttle basado en distancia al centro también ===
-Kp_throttle = 0.001
-Kd_throttle = 0.003
+# # === PID Throttle basado en distancia al centro también ===
+# Kp_throttle = 0.001
+# Kd_throttle = 0.003
 
 def process_image_front(image):
-    global camera_img_front, last_error_steer, integral_steer, last_error_throttle, previous_throttle
+    global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle, previous_throttle
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
     bgr = array[:, :, ::-1]
@@ -105,7 +106,7 @@ def process_image_front(image):
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
     #mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
-    heights = [int(0.45 * image.height), int(0.5 * image.height), int(0.6 * image.height)]
+    heights = [int(0.45 * image.height), int(0.5 * image.height), int(0.55 * image.height)]
     #heights = [int(0.2 * image.height), int(0.30 * image.height), int(0.40 * image.height)]
     centers = []
     
@@ -117,21 +118,15 @@ def process_image_front(image):
             left = white_indices[0]
             right = white_indices[-1]
 
-            # Si solo hay una línea (muy estrecho), asumimos extremos
-            if right - left < image.width * 0.2:
-                # if left < image.width // 2:
-                #     right = image.width - 1  # asume línea derecha ausente
-                # else:
-                #     left = 0  # asume línea izquierda ausente
-                left = 0
-
             center_x = (left + right) // 2
-            centers.append((center_x, y))
-            cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
 
-            # Opcional: marcar extremos
-            cv2.circle(mask_rgb, (left, y), 3, (0, 255, 0), -1)
-            cv2.circle(mask_rgb, (right, y), 3, (0, 255, 0), -1)
+            if mask_class[y, center_x] != 1:
+                centers.append((center_x, y))
+                cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
+    
+                # Opcional: marcar extremos
+                cv2.circle(mask_rgb, (left, y), 3, (0, 255, 0), -1)
+                cv2.circle(mask_rgb, (right, y), 3, (0, 255, 0), -1)
 
         cv2.line(mask_rgb, (0, y), (image.width - 1, y), (100, 100, 100), 1)
 
@@ -145,37 +140,30 @@ def process_image_front(image):
         cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
         error = image_center_x - mean_x
         error = -error
+        last_valid_error = error
         print(f"Pixel offset = {error:.2f}")
 
         # PID steer
-        integral_steer += error
-        integral_steer = np.clip(integral_steer, -5000, 5000)
         derivative_steer = error - last_error_steer
         last_error_steer = error
 
-        steer = Kp_steer * error + Ki_steer * integral_steer + Kd_steer * derivative_steer
+        steer = Kp_steer * error + Kd_steer * derivative_steer
         steer = np.clip(steer, -1.0, 1.0)
 
+        #-----------------
         abs_error = abs(error)
         derivative_throttle = abs_error - last_error_throttle
         last_error_throttle = abs_error
+        raw_throttle = Kp_throttle * abs_error + Kd_throttle * derivative_throttle
+        raw_throttle = np.clip(raw_throttle, 0.2, 0.8)
 
-        # Coeficientes PD
-        Kp_throttle = 0.002   # cuanto más pequeño, más velocidad en recta
-        Kd_throttle = 0.004   # cuanto más grande, más frena en curvas bruscas
+        vehicle.apply_control(carla.VehicleControl(throttle=raw_throttle, steer=steer))
 
-        # Cálculo del throttle (directo entre 0.2 y 0.6)
-        raw_throttle = 0.6 - (Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
-        real_throttle = np.clip(raw_throttle, 0.2, 0.6)
-        vehicle.apply_control(carla.VehicleControl(throttle=real_throttle, steer=steer))
-
-        print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={real_throttle:.3f}")
+        print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={raw_throttle:.3f}")
 
     else:
         print("⚠️ No se detectó centro válido. Deteniendo.")
-        vehicle.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0))
-        integral_steer = 0
-        last_error_steer = 0
+        error = last_valid_error
 
     cv2.imshow("Máscara Segmentada", cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
     cv2.waitKey(1)
