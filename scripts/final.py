@@ -71,12 +71,9 @@ last_valid_error  = 0
 # === PID Steer mucho más reactivo ===
 Kp_steer = 0.8
 Kd_steer = 1.2    
-Kp_throttle = 0.002   # proporcional: más error = menos throttle
-Kd_throttle = 0.005   # derivativo: suaviza frenazos bruscos
+Kp_throttle = 0.1   # proporcional: más error = menos throttle
+Kd_throttle = 0.03   # derivativo: suaviza frenazos bruscos
 
-# # === PID Throttle basado en distancia al centro también ===
-# Kp_throttle = 0.001
-# Kd_throttle = 0.003
 
 def process_image_front(image):
     global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle, previous_throttle
@@ -154,8 +151,11 @@ def process_image_front(image):
         abs_error = abs(error)
         derivative_throttle = abs_error - last_error_throttle
         last_error_throttle = abs_error
-        raw_throttle = Kp_throttle * abs_error + Kd_throttle * derivative_throttle
-        raw_throttle = np.clip(raw_throttle, 0.2, 0.8)
+        #print(raw_throttle)
+    
+        raw_throttle = 0.8 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+
+        raw_throttle = np.clip(raw_throttle, 0.35, 0.8)
 
         vehicle.apply_control(carla.VehicleControl(throttle=raw_throttle, steer=steer))
 
