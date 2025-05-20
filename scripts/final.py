@@ -63,10 +63,10 @@ last_error_steer = 0
 last_error_throttle = 0
 last_valid_error  = 0
 
-Kp_steer = 1.3
-Kd_steer = 1
-Kp_throttle = 0.02
-Kd_throttle = 1.2
+Kp_steer = 0.08
+Kd_steer = 0.001
+Kp_throttle = 0.01
+Kd_throttle = 0.01
 
 def process_image_front(image):
     global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle
@@ -125,7 +125,9 @@ def process_image_front(image):
     cv2.line(mask_rgb, (image_center_x, 0), (image_center_x, image.height), (128, 128, 128), 1)
 
 
-    mean_x = int(np.mean([pt[0] for pt in centers]))
+    weights = [2.5, 1, 0.5]  # más peso al punto superior (primer y)
+    x_values = [pt[0] for pt in centers]
+    mean_x = int(np.average(x_values, weights=weights[:len(x_values)]))
     cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
     error = image_center_x - mean_x
     error = -error
@@ -147,14 +149,15 @@ def process_image_front(image):
 
     # invertir porque asi cuanto mas se separa de centro (curva ) menos velocidad
 
-    throttle = 1 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+    throttle = 0.7 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
 
-    if (throttle > 0.78):
 
-        throttle = 0.78
+    if (throttle > 7):
 
-    if (throttle < 0.25):
-        throttle = 0.25
+        throttle = 0.7
+
+    if (throttle < 0.2):
+        throttle = 0.2
             
     if centers:
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
