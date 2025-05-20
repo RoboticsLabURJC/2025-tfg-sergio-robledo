@@ -5,9 +5,7 @@ import numpy as np
 import math
 import cv2
 
-# Cambiosssssssss
-# Decirle a gpt que cambie el pid teniendo en cuenta que tieen que buscar el centro 
-# de las lineas blancas un poco mas arriba de la mitad de la camara.
+#Cambiosssss nuevsvs
 
 # Configuración de conexión con CARLA
 HOST = '127.0.0.1'
@@ -69,11 +67,11 @@ last_error_throttle = 0
 last_valid_error  = 0
 # PID Steer ajustado para errores en píxeles (más reactivo)
 # === PID Steer mucho más reactivo ===
-Kp_steer = 0.8
-Kd_steer = 1.2    
-Kp_throttle = 0.1   # proporcional: más error = menos throttle
-Kd_throttle = 0.03   # derivativo: suaviza frenazos bruscos
-
+Kp_steer = 1.3
+Kd_steer = 1.5
+Kp_throttle = 0.02   # proporcional: más error = menos throttle
+Kd_throttle = 1.4   # derivativo: suaviza frenazos bruscos
+previous_throttle = 0.5  # valor inicial
 
 def process_image_front(image):
     global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle, previous_throttle
@@ -132,38 +130,56 @@ def process_image_front(image):
     cv2.line(mask_rgb, (image_center_x, 0), (image_center_x, image.height), (128, 128, 128), 1)
 
     # Calcular error si hay centros válidos
-    if centers:
-        mean_x = int(np.mean([pt[0] for pt in centers]))
-        cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
-        error = image_center_x - mean_x
-        error = -error
-        last_valid_error = error
-        print(f"Pixel offset = {error:.2f}")
-
-        # PID steer
-        derivative_steer = error - last_error_steer
-        last_error_steer = error
-
-        steer = Kp_steer * error + Kd_steer * derivative_steer
-        steer = np.clip(steer, -1.0, 1.0)
-
-        #-----------------
-        abs_error = abs(error)
-        derivative_throttle = abs_error - last_error_throttle
-        last_error_throttle = abs_error
-        #print(raw_throttle)
     
-        raw_throttle = 0.8 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+    mean_x = int(np.mean([pt[0] for pt in centers]))
+    cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
+    error = image_center_x - mean_x
+    error = -error
+    last_valid_error = error
+    print(f"Pixel offset = {error:.2f}")
 
-        raw_throttle = np.clip(raw_throttle, 0.35, 0.8)
+    # PID steer
+    derivative_steer = error - last_error_steer
+    last_error_steer = error
 
-        vehicle.apply_control(carla.VehicleControl(throttle=raw_throttle, steer=steer))
+    steer = Kp_steer * error + Kd_steer * derivative_steer
+    steer = np.clip(steer, -1.0, 1.0)
 
-        print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={raw_throttle:.3f}")
+    #-----------------
+    abs_error = abs(error)
+    derivative_throttle = abs_error - last_error_throttle
+    last_error_throttle = abs_error
+    #print(raw_throttle)
+
+    # invertir porque asi cuanto mas se separa de centro (curva ) menos velocidad
+
+    throttle = 1 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+
+    #alpha = 0.1
+    #throttle = alpha * throttle + (1 - alpha) * previous_throttle
+
+    #previous_throttle = throttle
+    if (throttle > 0.75):
+
+        throttle = 0.75
+
+    if (throttle < 0.25):
+        throttle = 0.25
+            
+    if centers:
+        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+
+
+        #vehicle.apply_control(carla.VehicleControl(throttle=raw_throttle, steer=steer))
+
+        print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={throttle:.3f}")
 
     else:
-        print("⚠️ No se detectó centro válido. Deteniendo.")
-        error = last_valid_error
+        print("No se detectó centro")
+        last_valid_error = 2*last_valid_error
+  
+        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+
 
     cv2.imshow("Máscara Segmentada", cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
     cv2.waitKey(1)
