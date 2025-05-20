@@ -5,8 +5,6 @@ import numpy as np
 import math
 import cv2
 
-#Cambiosssss nuevsvs
-
 # Configuración de conexión con CARLA
 HOST = '127.0.0.1'
 PORT = 2000
@@ -61,20 +59,17 @@ camera_thirdpers = world.spawn_actor(camera_bp, transform_thirdpers, attach_to=v
 camera_img_front = None
 camera_img_thirdpers = None
 
-# === PID Steer directo en píxeles ===
 last_error_steer = 0
 last_error_throttle = 0
 last_valid_error  = 0
-# PID Steer ajustado para errores en píxeles (más reactivo)
-# === PID Steer mucho más reactivo ===
+
 Kp_steer = 1.3
-Kd_steer = 1.5
-Kp_throttle = 0.02   # proporcional: más error = menos throttle
-Kd_throttle = 1.4   # derivativo: suaviza frenazos bruscos
-previous_throttle = 0.5  # valor inicial
+Kd_steer = 1
+Kp_throttle = 0.02
+Kd_throttle = 1.2
 
 def process_image_front(image):
-    global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle, previous_throttle
+    global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
     bgr = array[:, :, ::-1]
@@ -102,7 +97,7 @@ def process_image_front(image):
     #mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
     heights = [int(0.45 * image.height), int(0.5 * image.height), int(0.55 * image.height)]
-    #heights = [int(0.2 * image.height), int(0.30 * image.height), int(0.40 * image.height)]
+
     centers = []
     
     for y in heights:
@@ -119,7 +114,7 @@ def process_image_front(image):
                 centers.append((center_x, y))
                 cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
     
-                # Opcional: marcar extremos
+             
                 cv2.circle(mask_rgb, (left, y), 3, (0, 255, 0), -1)
                 cv2.circle(mask_rgb, (right, y), 3, (0, 255, 0), -1)
 
@@ -129,8 +124,7 @@ def process_image_front(image):
     image_center_x = image.width // 2
     cv2.line(mask_rgb, (image_center_x, 0), (image_center_x, image.height), (128, 128, 128), 1)
 
-    # Calcular error si hay centros válidos
-    
+
     mean_x = int(np.mean([pt[0] for pt in centers]))
     cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
     error = image_center_x - mean_x
@@ -149,29 +143,21 @@ def process_image_front(image):
     abs_error = abs(error)
     derivative_throttle = abs_error - last_error_throttle
     last_error_throttle = abs_error
-    #print(raw_throttle)
+   
 
     # invertir porque asi cuanto mas se separa de centro (curva ) menos velocidad
 
     throttle = 1 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
 
-    #alpha = 0.1
-    #throttle = alpha * throttle + (1 - alpha) * previous_throttle
+    if (throttle > 0.78):
 
-    #previous_throttle = throttle
-    if (throttle > 0.75):
-
-        throttle = 0.75
+        throttle = 0.78
 
     if (throttle < 0.25):
         throttle = 0.25
             
     if centers:
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
-
-
-        #vehicle.apply_control(carla.VehicleControl(throttle=raw_throttle, steer=steer))
-
         print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={throttle:.3f}")
 
     else:
