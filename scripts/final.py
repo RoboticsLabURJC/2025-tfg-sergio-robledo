@@ -2,26 +2,52 @@ import carla
 import time
 import pygame
 import numpy as np
-import math
+import matplotlib.pyplot as plt
 import cv2
+from collections import deque
+
+
+# Cambbbbiossss 222
+# --- Inicialización de la gráfica ---
+plt.ion()
+fig, ax = plt.subplots()
+history_len = 100  
+
+steer_history = deque([0]*history_len, maxlen=history_len)
+throttle_history = deque([0]*history_len, maxlen=history_len)
+line1, = ax.plot(steer_history, label="Steer", color="blue")
+line2, = ax.plot(throttle_history, label="Throttle", color="green")
+ax.set_ylim(-1.1, 1.1)
+ax.legend()
+#..........................................
+current_steer = 0.0
+current_throttle = 0.0
+
+last_error_steer = 0
+Kp_steer = 0.03
+Kd_steer = 0.01
+
+last_error_throttle = 0
+Kp_throttle = 0.005
+
 
 # Configuración de conexión con CARLA
 HOST = '127.0.0.1'
 PORT = 2000
 VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 
-# Inicializa Pygame
+# Inicializa Pygame para mostrar la cámara RGB
 pygame.init()
-WIDTH, HEIGHT = 640, 480
-window_front = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Cámara Frontal")
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("DeepRacer - RGB y Segmentación Semántica")
 
-# Conexión a CARLA
+# Conectar con el servidor de CARLA
 client = carla.Client(HOST, PORT)
 client.set_timeout(5.0)
 world = client.get_world()
 
-# Configurar el clima
+# Configurar clima de atardecer 🌅
 weather = carla.WeatherParameters(
     cloudiness=80.0,
     precipitation=0.0,
@@ -30,46 +56,46 @@ weather = carla.WeatherParameters(
     wetness=0.0
 )
 world.set_weather(weather)
+print("🌅 Clima establecido en 'Sunset' (Atardecer)")
 
-# Blueprint y spawn
+# Obtener el blueprint del vehículo
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
+
+# Spawnear el vehículo
 spawn_point = carla.Transform(
-    carla.Location(x=3, y=0, z=0.5),
+    carla.Location(x=3, y=-1, z=0.5),
     carla.Rotation(yaw=-90)
 )
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
-    print("❌ No se pudo spawnear el vehículo.")
+    print("❌ Error al spawnear el vehículo")
     exit()
-print(f"🚗 Vehículo spawneado en {spawn_point.location}")
+print(f"🚗 Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 
-# Blueprint de cámara
-camera_bp = blueprint_library.find('sensor.camera.rgb')
-camera_bp.set_attribute('image_size_x', str(WIDTH))
-camera_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_bp.set_attribute('fov', '120')
+# Blueprint para cámara RGB
+camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
+camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
+camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
+camera_rgb_bp.set_attribute('fov', '90')
 
-# Cámaras
 transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 transform_thirdpers = carla.Transform(carla.Location(x=-1, z=0.75))
-camera_front = world.spawn_actor(camera_bp, transform_front, attach_to=vehicle)
-camera_thirdpers = world.spawn_actor(camera_bp, transform_thirdpers, attach_to=vehicle)
+camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
+time.sleep(1)
+# Variables para mostrar imágenes
+camera_image_rgb = None
 
-camera_img_front = None
-camera_img_thirdpers = None
 
-last_error_steer = 0
-last_error_throttle = 0
-last_valid_error  = 0
-
-Kp_steer = 0.08
-Kd_steer = 0.001
-Kp_throttle = 0.01
-Kd_throttle = 0.01
+def process_rgb(image):
+    global camera_image_rgb
+    array = np.frombuffer(image.raw_data, dtype=np.uint8)
+    array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
+    array = array[:, :, ::-1]
+    camera_image_rgb = pygame.surfarray.make_surface(array.swapaxes(0, 1))
 
 def process_image_front(image):
-    global last_valid_error, camera_img_front, last_error_steer, integral_steer, last_error_throttle
+    global current_steer, current_throttle, camera_img_front, last_error_steer, last_error_throttle, camera_img_front
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
     bgr = array[:, :, ::-1]
@@ -96,124 +122,96 @@ def process_image_front(image):
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
     #mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
-    heights = [int(0.45 * image.height), int(0.5 * image.height), int(0.55 * image.height)]
+   
+    y = int(0.4 * image.height)
+    row = mask_class[y]
+    white_indices = np.where(row == 1)[0]
 
-    centers = []
+    center_x = None
     
-    for y in heights:
-        row = mask_class[y]
-        white_indices = np.where(row == 1)[0]
+    if len(white_indices) > 10:
+        left = white_indices[0]
+        right = white_indices[-1]
+        center_x = (left + right) // 2
 
-        if len(white_indices) > 10:
-            left = white_indices[0]
-            right = white_indices[-1]
+        if mask_class[y, center_x] != 1:
+            cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
 
-            center_x = (left + right) // 2
-
-            if mask_class[y, center_x] != 1:
-                centers.append((center_x, y))
-                cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
-    
-             
-                cv2.circle(mask_rgb, (left, y), 3, (0, 255, 0), -1)
-                cv2.circle(mask_rgb, (right, y), 3, (0, 255, 0), -1)
-
-        cv2.line(mask_rgb, (0, y), (image.width - 1, y), (100, 100, 100), 1)
-
-    # Línea central vertical (siempre)
+    cv2.line(mask_rgb, (0, y), (image.width - 1, y), (100, 100, 100), 1)
     image_center_x = image.width // 2
     cv2.line(mask_rgb, (image_center_x, 0), (image_center_x, image.height), (128, 128, 128), 1)
 
+    
+    if center_x is not None:
+        # Dibuja el centro detectado
+        cv2.circle(mask_rgb, (center_x, image.height // 2), 5, (255, 0, 0), -1)
 
-    weights = [2.5, 1, 0.5]  # más peso al punto superior (primer y)
-    x_values = [pt[0] for pt in centers]
-    mean_x = int(np.average(x_values, weights=weights[:len(x_values)]))
-    cv2.circle(mask_rgb, (mean_x, image.height // 2), 5, (255, 0, 0), -1)
-    error = image_center_x - mean_x
-    error = -error
-    last_valid_error = error
-    print(f"Pixel offset = {error:.2f}")
+        # Calcular error y aplicar PID
+        error = image_center_x - center_x
+        error = -error  # invertimos el signo para que derecha = positivo
 
-    # PID steer
-    derivative_steer = error - last_error_steer
-    last_error_steer = error
+        print(f"Pixel offset = {error:.2f}")
 
-    steer = Kp_steer * error + Kd_steer * derivative_steer
-    steer = np.clip(steer, -1.0, 1.0)
+        # PID simple (solo proporcional aquí)
+        derivative = error - last_error_steer
+        steer = Kp_steer * error + Kd_steer * derivative
+        steer = np.clip(steer, -1.3, 1.0)
+        last_error_steer = error
 
-    #-----------------
-    abs_error = abs(error)
-    derivative_throttle = abs_error - last_error_throttle
-    last_error_throttle = abs_error
-   
-
-    # invertir porque asi cuanto mas se separa de centro (curva ) menos velocidad
-
-    throttle = 0.7 - ( Kp_throttle * abs_error + Kd_throttle * derivative_throttle)
+        abs_error = abs(error)
+        last_error_throttle = abs_error
+        throttle = 0.6 - Kp_throttle * abs_error
+        throttle = np.clip(throttle, 0.2, 0.6)
 
 
-    if (throttle > 7):
-
-        throttle = 0.7
-
-    if (throttle < 0.2):
-        throttle = 0.2
-            
-    if centers:
+        steer += 0.3
+        current_steer = steer
+        current_throttle = throttle
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
         print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={throttle:.3f}")
 
     else:
         print("No se detectó centro")
-        last_valid_error = 2*last_valid_error
-  
-        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+        
 
 
     cv2.imshow("Máscara Segmentada", cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
     cv2.waitKey(1)
 
-
-
-
-
-def process_image_thirdpers(image):
-    global camera_img_thirdpers
-    array = np.frombuffer(image.raw_data, dtype=np.uint8)
-    array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    camera_img_thirdpers = array
-
-# Listeners
+# Vincular sensores
 camera_front.listen(lambda image: process_image_front(image))
-camera_thirdpers.listen(lambda image: process_image_thirdpers(image))
+# Control del vehículo
 
-# Loop principal
+control = carla.VehicleControl()
 running = True
 clock = pygame.time.Clock()
-while running:
 
+while running:
+    clock.tick(30)
+  
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
             running = False
 
-    if camera_img_front:
-        window_front.blit(camera_img_front, (0, 0))
-        pygame.display.update()
+ 
+    if camera_image_rgb:
+        screen.blit(camera_image_rgb, (0, 0))
 
-    if camera_img_thirdpers is not None:
-        big_view = cv2.resize(camera_img_thirdpers, (1200, 960))
-        # cv2.imshow("Cámara 3ª Persona", big_view)
+    pygame.display.flip()
+    steer_history.append(current_steer)
+    throttle_history.append(current_throttle)
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        running = False
+    line1.set_ydata(steer_history)
+    line2.set_ydata(throttle_history)
+    line1.set_xdata(range(len(steer_history)))
+    line2.set_xdata(range(len(throttle_history)))
+    ax.relim()
+    ax.autoscale_view()
+    plt.draw()
+    plt.pause(0.001)
+    
 
-    clock.tick(30)
-
-# Finalización
-print("🛑 Finalizando conducción autónoma.")
-vehicle.apply_control(carla.VehicleControl(brake=1.0))
-camera_front.destroy()
-camera_thirdpers.destroy()
+# Cleanup
+camera_rgb.destroy()
 vehicle.destroy()
 pygame.quit()
-cv2.destroyAllWindows()
