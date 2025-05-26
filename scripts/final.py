@@ -7,7 +7,7 @@ import cv2
 from collections import deque
 
 
-# Cambbbbiossss 222
+# Cambbbbiossss
 # --- Inicialización de la gráfica ---
 plt.ion()
 fig, ax = plt.subplots()
@@ -24,11 +24,11 @@ current_steer = 0.0
 current_throttle = 0.0
 
 last_error_steer = 0
-Kp_steer = 0.03
+Kp_steer = 0.1
 Kd_steer = 0.01
 
 last_error_throttle = 0
-Kp_throttle = 0.005
+Kp_throttle = 0.03
 
 
 # Configuración de conexión con CARLA
@@ -147,15 +147,16 @@ def process_image_front(image):
         cv2.circle(mask_rgb, (center_x, image.height // 2), 5, (255, 0, 0), -1)
 
         # Calcular error y aplicar PID
-        error = image_center_x - center_x
-        error = -error  # invertimos el signo para que derecha = positivo
-
+        # error = image_center_x - center_x
+        # error = -error  # invertimos el signo para que derecha = positivo
+        error = - 100*(image_center_x -center_x) / image_center_x
         print(f"Pixel offset = {error:.2f}")
 
         # PID simple (solo proporcional aquí)
         derivative = error - last_error_steer
         steer = Kp_steer * error + Kd_steer * derivative
-        steer = np.clip(steer, -1.3, 1.0)
+        #steer = np.clip(steer, -1.3, 1.0)
+        steer = np.clip(steer, -1.0, 1.0)
         last_error_steer = error
 
         abs_error = abs(error)
@@ -164,7 +165,7 @@ def process_image_front(image):
         throttle = np.clip(throttle, 0.2, 0.6)
 
 
-        steer += 0.3
+        #steer += 0.3
         current_steer = steer
         current_throttle = throttle
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
