@@ -7,7 +7,7 @@ import cv2
 from collections import deque
 
 
-# Cambbbbiossss
+# Cambbbbiossssfiii
 # --- Inicialización de la gráfica ---
 plt.ion()
 fig, ax = plt.subplots()
@@ -24,7 +24,7 @@ current_steer = 0.0
 current_throttle = 0.0
 
 last_error_steer = 0
-Kp_steer = 0.1
+Kp_steer = 0.08
 Kd_steer = 0.01
 
 last_error_throttle = 0
@@ -64,7 +64,7 @@ vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
 # Spawnear el vehículo
 spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1, z=0.5),
+    carla.Location(x=3, y=-1, z=0.15),
     carla.Rotation(yaw=-90)
 )
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -77,7 +77,7 @@ print(f"🚗 Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
 camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
 camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_rgb_bp.set_attribute('fov', '90')
+camera_rgb_bp.set_attribute('fov', '120')
 
 transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 transform_thirdpers = carla.Transform(carla.Location(x=-1, z=0.75))
@@ -86,6 +86,8 @@ time.sleep(1)
 # Variables para mostrar imágenes
 camera_image_rgb = None
 
+vehicle.apply_control(carla.VehicleControl(throttle=0.2, steer=0))
+time.sleep(2)
 
 def process_rgb(image):
     global camera_image_rgb
@@ -123,7 +125,7 @@ def process_image_front(image):
     #mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
    
-    y = int(0.4 * image.height)
+    y = int(0.53 * image.height)
     row = mask_class[y]
     white_indices = np.where(row == 1)[0]
 
@@ -152,7 +154,7 @@ def process_image_front(image):
         error = - 100*(image_center_x -center_x) / image_center_x
         print(f"Pixel offset = {error:.2f}")
 
-        # PID simple (solo proporcional aquí)
+        
         derivative = error - last_error_steer
         steer = Kp_steer * error + Kd_steer * derivative
         #steer = np.clip(steer, -1.3, 1.0)
@@ -161,10 +163,10 @@ def process_image_front(image):
 
         abs_error = abs(error)
         last_error_throttle = abs_error
-        throttle = 0.6 - Kp_throttle * abs_error
-        throttle = np.clip(throttle, 0.2, 0.6)
+        throttle = 0.7 - Kp_throttle * abs_error
+        throttle = np.clip(throttle, 0.2, 0.7)
 
-
+        #throttle = 0.4
         #steer += 0.3
         current_steer = steer
         current_throttle = throttle
