@@ -122,7 +122,7 @@ def process_image_front(image):
     # === Convertir a imagen RGB solo para mostrar ===
     mask_rgb = np.zeros_like(rgb)
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
-    #mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
+    mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
    
     y = int(0.53 * image.height)
@@ -137,7 +137,7 @@ def process_image_front(image):
         center_x = (left + right) // 2
 
         if mask_class[y, center_x] != 1:
-            cv2.circle(mask_rgb, (center_x, y), 4, (0, 0, 255), -1)
+            cv2.circle(mask_rgb, (center_x, y), 4, (255, 0, 0), -1)
 
     cv2.line(mask_rgb, (0, y), (image.width - 1, y), (100, 100, 100), 1)
     image_center_x = image.width // 2
@@ -146,13 +146,13 @@ def process_image_front(image):
     
     if center_x is not None:
         # Dibuja el centro detectado
-        cv2.circle(mask_rgb, (center_x, image.height // 2), 5, (255, 0, 0), -1)
+        #cv2.circle(mask_rgb, (center_x, image.height // 2), 5, (255, 0, 0), -1)
 
         # Calcular error y aplicar PID
         # error = image_center_x - center_x
         # error = -error  # invertimos el signo para que derecha = positivo
         error = - 100*(image_center_x -center_x) / image_center_x
-        print(f"Pixel offset = {error:.2f}")
+        #print(f"Pixel offset = {error:.2f}")
 
         
         derivative = error - last_error_steer
@@ -171,7 +171,10 @@ def process_image_front(image):
         current_steer = steer
         current_throttle = throttle
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
-        print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={throttle:.3f}")
+        #print(f"[PID px] error={error:.1f}px, steer={steer:.3f}, throttle={throttle:.3f}")
+        v = vehicle.get_velocity()
+        speed = (v.x**2 + v.y**2 + v.z**2) ** 0.5
+        print(f"Velocidad: {speed:.2f} m/s")
 
     else:
         print("No se detectó centro")
