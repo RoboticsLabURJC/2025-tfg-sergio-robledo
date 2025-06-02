@@ -7,7 +7,7 @@ import cv2
 from collections import deque
 
 
-# Cambbbbiossssfiii
+# CambbbbiosssFINNNNn
 # --- Inicialización de la gráfica ---
 plt.ion()
 fig, ax = plt.subplots()
@@ -24,11 +24,11 @@ current_steer = 0.0
 current_throttle = 0.0
 
 last_error_steer = 0
-Kp_steer = 0.08
-Kd_steer = 0.01
+Kp_steer = 0.1
+Kd_steer = 0.005
 
 last_error_throttle = 0
-Kp_throttle = 0.03
+Kp_throttle = 0.01
 
 
 # Configuración de conexión con CARLA
@@ -64,7 +64,7 @@ vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
 # Spawnear el vehículo
 spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1, z=0.15),
+    carla.Location(x=3, y=-1, z=0.03),
     carla.Rotation(yaw=-90)
 )
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -78,11 +78,14 @@ camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
 camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
 camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
 camera_rgb_bp.set_attribute('fov', '120')
+# Para 15 Hz : sensor_tick = 1 / 15 ≈ 0.0667 segundos
+#camera_rgb_bp.set_attribute('sensor_tick', '0.0667')
+
 
 transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 transform_thirdpers = carla.Transform(carla.Location(x=-1, z=0.75))
 camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
-time.sleep(1)
+#time.sleep(2)
 # Variables para mostrar imágenes
 camera_image_rgb = None
 
@@ -125,7 +128,7 @@ def process_image_front(image):
     mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
    
-    y = int(0.53 * image.height)
+    y = int(0.5 * image.height)
     row = mask_class[y]
     white_indices = np.where(row == 1)[0]
 
@@ -163,8 +166,8 @@ def process_image_front(image):
 
         abs_error = abs(error)
         last_error_throttle = abs_error
-        throttle = 0.7 - Kp_throttle * abs_error
-        throttle = np.clip(throttle, 0.2, 0.7)
+        throttle = 0.6 - Kp_throttle * abs_error
+        throttle = np.clip(throttle, 0.2, 0.6)
 
         #throttle = 0.4
         #steer += 0.3
@@ -190,10 +193,8 @@ camera_front.listen(lambda image: process_image_front(image))
 
 control = carla.VehicleControl()
 running = True
-clock = pygame.time.Clock()
 
 while running:
-    clock.tick(30)
   
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
