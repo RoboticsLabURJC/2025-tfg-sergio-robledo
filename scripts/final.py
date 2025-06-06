@@ -77,7 +77,7 @@ print(f"🚗 Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
 camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
 camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_rgb_bp.set_attribute('fov', '120')
+camera_rgb_bp.set_attribute('fov', '140')
 # Para 15 Hz : sensor_tick = 1 / 15 ≈ 0.0667 segundos
 #camera_rgb_bp.set_attribute('sensor_tick', '0.0667')
 
