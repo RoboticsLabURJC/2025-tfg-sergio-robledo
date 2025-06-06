@@ -7,7 +7,7 @@ import cv2
 from collections import deque
 
 
-# CambbbbiosssFINNNNn
+# Cambbbbiosssfff
 # --- Inicialización de la gráfica ---
 plt.ion()
 fig, ax = plt.subplots()
@@ -24,11 +24,11 @@ current_steer = 0.0
 current_throttle = 0.0
 
 last_error_steer = 0
-Kp_steer = 0.1
-Kd_steer = 0.005
+Kp_steer = 0.13
+Kd_steer = 0.00001
 
 last_error_throttle = 0
-Kp_throttle = 0.01
+Kp_throttle = 0.023
 
 
 # Configuración de conexión con CARLA
@@ -166,8 +166,8 @@ def process_image_front(image):
 
         abs_error = abs(error)
         last_error_throttle = abs_error
-        throttle = 0.6 - Kp_throttle * abs_error
-        throttle = np.clip(throttle, 0.2, 0.6)
+        throttle = 0.62 - Kp_throttle * abs_error
+        throttle = np.clip(throttle, 0.3, 0.62)
 
         #throttle = 0.4
         #steer += 0.3
