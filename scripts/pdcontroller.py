@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 import cv2
 from collections import deque
 
+# #..........................................
+# PD para steering y P para throttle para recorrer una pista
+# #..........................................
 
-# Cambbbbiosssfff
 # --- Inicialización de la gráfica ---
 plt.ion()
 fig, ax = plt.subplots()
@@ -24,30 +26,29 @@ current_steer = 0.0
 current_throttle = 0.0
 
 last_error_steer = 0
-Kp_steer = 0.13
+Kp_steer = 0.1
 Kd_steer = 0.00001
 
 last_error_throttle = 0
-Kp_throttle = 0.023
+Kp_throttle = 0.02
 
 
-# Configuración de conexión con CARLA
 HOST = '127.0.0.1'
 PORT = 2000
 VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 
-# Inicializa Pygame para mostrar la cámara RGB
+
 pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("DeepRacer - RGB y Segmentación Semántica")
 
-# Conectar con el servidor de CARLA
+
 client = carla.Client(HOST, PORT)
 client.set_timeout(5.0)
 world = client.get_world()
 
-# Configurar clima de atardecer 🌅
+
 weather = carla.WeatherParameters(
     cloudiness=80.0,
     precipitation=0.0,
@@ -56,37 +57,34 @@ weather = carla.WeatherParameters(
     wetness=0.0
 )
 world.set_weather(weather)
-print("🌅 Clima establecido en 'Sunset' (Atardecer)")
+print("Clima establecido en 'Sunset'")
 
-# Obtener el blueprint del vehículo
+
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
-# Spawnear el vehículo
+
 spawn_point = carla.Transform(
     carla.Location(x=3, y=-1, z=0.03),
     carla.Rotation(yaw=-90)
 )
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
-    print("❌ Error al spawnear el vehículo")
+    print("Error al spawnear el vehículo")
     exit()
-print(f"🚗 Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
+print(f"Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 
-# Blueprint para cámara RGB
+
 camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
 camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
 camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
 camera_rgb_bp.set_attribute('fov', '140')
-# Para 15 Hz : sensor_tick = 1 / 15 ≈ 0.0667 segundos
-#camera_rgb_bp.set_attribute('sensor_tick', '0.0667')
 
 
 transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 transform_thirdpers = carla.Transform(carla.Location(x=-1, z=0.75))
 camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
-#time.sleep(2)
-# Variables para mostrar imágenes
+
 camera_image_rgb = None
 
 vehicle.apply_control(carla.VehicleControl(throttle=0.2, steer=0))
@@ -128,7 +126,7 @@ def process_image_front(image):
     mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
    
-    y = int(0.5 * image.height)
+    y = int(0.53 * image.height)
     row = mask_class[y]
     white_indices = np.where(row == 1)[0]
 
@@ -148,19 +146,13 @@ def process_image_front(image):
 
     
     if center_x is not None:
-        # Dibuja el centro detectado
-        #cv2.circle(mask_rgb, (center_x, image.height // 2), 5, (255, 0, 0), -1)
-
-        # Calcular error y aplicar PID
-        # error = image_center_x - center_x
-        # error = -error  # invertimos el signo para que derecha = positivo
+  
         error = - 100*(image_center_x -center_x) / image_center_x
-        #print(f"Pixel offset = {error:.2f}")
 
         
         derivative = error - last_error_steer
         steer = Kp_steer * error + Kd_steer * derivative
-        #steer = np.clip(steer, -1.3, 1.0)
+   
         steer = np.clip(steer, -1.0, 1.0)
         last_error_steer = error
 
@@ -169,8 +161,7 @@ def process_image_front(image):
         throttle = 0.62 - Kp_throttle * abs_error
         throttle = np.clip(throttle, 0.3, 0.62)
 
-        #throttle = 0.4
-        #steer += 0.3
+    
         current_steer = steer
         current_throttle = throttle
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
@@ -183,13 +174,11 @@ def process_image_front(image):
         print("No se detectó centro")
         
 
-
     cv2.imshow("Máscara Segmentada", cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
     cv2.waitKey(1)
 
-# Vincular sensores
 camera_front.listen(lambda image: process_image_front(image))
-# Control del vehículo
+
 
 control = carla.VehicleControl()
 running = True
@@ -218,7 +207,6 @@ while running:
     plt.pause(0.001)
     
 
-# Cleanup
 camera_rgb.destroy()
 vehicle.destroy()
 pygame.quit()
