@@ -168,8 +168,8 @@ def process_image_front(image):
 
         abs_error = abs(error)
         last_error_throttle = abs_error
-        throttle = 0.62 - Kp_throttle * abs_error
-        throttle = np.clip(throttle, 0.3, 0.62)
+        throttle = 0.5 - Kp_throttle * abs_error
+        throttle = np.clip(throttle, 0.2, 0.5)
 
     
         current_steer = steer
@@ -194,29 +194,23 @@ control = carla.VehicleControl()
 running = True
 
 while running:
+
     world.tick()
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
             running = False
+            
+            settings = world.get_settings()
+            settings.synchronous_mode = False
+            settings.fixed_delta_seconds = None
+            world.apply_settings(settings)
 
- 
-    if camera_image_rgb:
-        screen.blit(camera_image_rgb, (0, 0))
+            camera_rgb.destroy()
+            vehicle.destroy()
+            pygame.quit()
 
-    pygame.display.flip()
-    # steer_history.append(current_steer)
-    # throttle_history.append(current_throttle)
 
-    # line1.set_ydata(steer_history)
-    # line2.set_ydata(throttle_history)
-    # line1.set_xdata(range(len(steer_history)))
-    # line2.set_xdata(range(len(throttle_history)))
-    # ax.relim()
-    # ax.autoscale_view()
-    # plt.draw()
-    # plt.pause(0.001)
     
 
-camera_rgb.destroy()
-vehicle.destroy()
-pygame.quit()
+
