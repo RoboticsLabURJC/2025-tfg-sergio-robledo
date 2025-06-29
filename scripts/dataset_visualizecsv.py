@@ -5,7 +5,7 @@ import pygame
 import matplotlib.pyplot as plt
 import matplotlib.backends.backend_agg as agg
 
-CSV_PATH = "dataset/dataset_Deepracer_BaseMap_1751132511826.csv"
+CSV_PATH = "dataset/dataset_Deepracer_BaseMap_1751220864728.csv"
 df = pd.read_csv(CSV_PATH)
 
 pygame.init()
@@ -14,10 +14,6 @@ pygame.display.set_caption("Visualizador Dataset DeepRacer (solo gráficas)")
 
 font = pygame.font.SysFont(None, 26)
 clock = pygame.time.Clock()
-
-ruta_imagen = "/home/sergior/Downloads/pruebas/dataset/masks/mask1751132511826/1751125319931_mask_Deepracer_BaseMap_1751132511826.png"
-imagen = pygame.image.load(ruta_imagen).convert_alpha()
-
 
 def render_plot(df, index, window=50):
     start = max(0, index - window)
