@@ -9,7 +9,7 @@ CSV_PATH = "dataset/dataset_Deepracer_BaseMap_1751132511826.csv"
 df = pd.read_csv(CSV_PATH)
 
 pygame.init()
-screen = pygame.display.set_mode((1750, 1000))
+screen = pygame.display.set_mode((1900, 1000))
 pygame.display.set_caption("Visualizador Dataset DeepRacer (solo gráficas)")
 
 font = pygame.font.SysFont(None, 26)
@@ -19,50 +19,36 @@ ruta_imagen = "/home/sergior/Downloads/pruebas/dataset/masks/mask1751132511826/1
 imagen = pygame.image.load(ruta_imagen).convert_alpha()
 
 
-def render_plot(data_slice, current_idx, window_duration=500):
-    fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+def render_plot(df, index, window=50):
+    start = max(0, index - window)
+    data_slice = df[start:index + 1]
+    fig, axs = plt.subplots(3, 2, figsize=(10, 8))
     fig.tight_layout(pad=2.0)
 
-    current_time = data_slice.loc[current_idx, 'timestamp']
-    start_time = current_time - window_duration
-    end_time = current_time
+    timestamps = data_slice['timestamp']
 
-   
-    data_window = data_slice[(data_slice['timestamp'] >= start_time) & (data_slice['timestamp'] <= end_time)]
-    timestamps = data_window['timestamp']
-
-    if data_window.empty:
-        data_window = data_slice.iloc[[current_idx]]
-        timestamps = data_window['timestamp']
-
-    # Gráfica 1: Throttle
-    axs[0, 0].plot(timestamps, data_window['throttle'], color='green')
+    axs[0, 0].plot(timestamps, data_slice['throttle'], color='green')
     axs[0, 0].set_title("Throttle")
-    axs[0, 0].set_xlim(start_time, end_time)
+    axs[0, 0].set_xlim(timestamps.min(), timestamps.max())
 
-    # Gráfica 2: Steer
-    axs[0, 1].plot(timestamps, data_window['steer'], color='blue')
+    axs[0, 1].plot(timestamps, data_slice['steer'], color='blue')
     axs[0, 1].set_title("Steer")
-    axs[0, 1].set_xlim(start_time, end_time)
+    axs[0, 1].set_xlim(timestamps.min(), timestamps.max())
 
-    # Gráfica 3: Brake
-    axs[0, 2].plot(timestamps, data_window['brake'], color='red')
-    axs[0, 2].set_title("Brake")
-    axs[0, 2].set_xlim(start_time, end_time)
+    axs[1, 0].plot(timestamps, data_slice['brake'], color='red')
+    axs[1, 0].set_title("Brake")
+    axs[1, 0].set_xlim(timestamps.min(), timestamps.max())
 
-    # Gráfica 4: Speed
-    axs[1, 0].plot(timestamps, data_window['speed'], color='orange')
-    axs[1, 0].set_title("Speed")
-    axs[1, 0].set_xlim(start_time, end_time)
+    axs[1, 1].plot(timestamps, data_slice['speed'], color='orange')
+    axs[1, 1].set_title("Speed")
+    axs[1, 1].set_xlim(timestamps.min(), timestamps.max())
 
-    # Gráfica 5: Heading
-    axs[1, 1].plot(timestamps, data_window['heading'], color='purple')
-    axs[1, 1].set_title("Heading")
-    axs[1, 1].set_xlim(start_time, end_time)
+    axs[2, 0].plot(timestamps, data_slice['heading'], color='purple')
+    axs[2, 0].set_title("Heading")
+    axs[2, 0].set_xlim(timestamps.min(), timestamps.max())
 
-    axs[1, 2].axis('off')
+    axs[2, 1].axis('off')
 
- 
     canvas = agg.FigureCanvasAgg(fig)
     canvas.draw()
     renderer = canvas.get_renderer()
@@ -71,6 +57,7 @@ def render_plot(data_slice, current_idx, window_duration=500):
     surf = pygame.image.frombuffer(raw_data, size, "RGBA")
     plt.close(fig)
     return surf
+
 
 
 index = 0
