@@ -17,11 +17,12 @@ current_steer = 0.0
 current_brake = 0.0
 
 
-# === CONFIGURACIÓN DEL DATASET ===
-DATASET_ID = "001"
+currtime = str(int(time.time() * 1000))
+
+DATASET_ID = "Deepracer_BaseMap_" + currtime
 BASE_DIR = "dataset"
-RGB_DIR = os.path.join(BASE_DIR, "rgb")
-MASK_DIR = os.path.join(BASE_DIR, "masks")
+RGB_DIR = os.path.join(BASE_DIR, "rgb/rgb" + currtime)
+MASK_DIR = os.path.join(BASE_DIR, "masks/mask" + currtime)
 CSV_PATH = os.path.join(BASE_DIR, f"dataset_{DATASET_ID}.csv")
 
 os.makedirs(RGB_DIR, exist_ok=True)
@@ -30,7 +31,7 @@ os.makedirs(MASK_DIR, exist_ok=True)
 if not os.path.exists(CSV_PATH):
     with open(CSV_PATH, mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["rgb_path", "mask_path", "timestamp", "accel", "steer", "brake", "speed", "heading"])
+        writer.writerow(["rgb_path", "mask_path", "timestamp", "throttle", "steer", "brake", "speed", "heading"])
 
 
 
@@ -117,7 +118,7 @@ def camera_callback(image):
     mask_class[mask_white > 0] = 1
     mask_class[mask_yellow > 0] = 2
 
-    # === Convertir a imagen RGB solo para mostrar ===
+ 
     mask_rgb = np.zeros_like(rgb)
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
     mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
@@ -144,8 +145,8 @@ def guardar_dato(timestamp, rgb_img, mask_class_img, accel, steer, brake, speed,
     rgb_name = f"{timestamp}_rgb_{DATASET_ID}.png"
     mask_name = f"{timestamp}_mask_{DATASET_ID}.png"
 
-    rgb_path_rel = os.path.join("rgb", rgb_name)
-    mask_path_rel = os.path.join("masks", mask_name)
+    rgb_path_rel = os.path.join("rgb/rgb" + currtime, rgb_name)
+    mask_path_rel = os.path.join("masks/mask" + currtime, mask_name)
 
     cv2.imwrite(os.path.join(RGB_DIR, rgb_name), rgb_img)
     cv2.imwrite(os.path.join(MASK_DIR, mask_name), cv2.cvtColor(mask_class_img, cv2.COLOR_RGB2BGR))
