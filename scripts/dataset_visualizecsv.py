@@ -5,7 +5,7 @@ import pygame
 import matplotlib.pyplot as plt
 import matplotlib.backends.backend_agg as agg
 
-CSV_PATH = "dataset/dataset_Deepracer_BaseMap_1751220864728.csv"
+CSV_PATH = "dataset/dataset_Deepracer_BaseMap_1751386587457.csv"
 df = pd.read_csv(CSV_PATH)
 
 pygame.init()
@@ -26,10 +26,12 @@ def render_plot(df, index, window=50):
     axs[0, 0].plot(timestamps, data_slice['throttle'], color='green')
     axs[0, 0].set_title("Throttle")
     axs[0, 0].set_xlim(timestamps.min(), timestamps.max())
+    axs[0, 0].set_ylim(0.0, 0.8)
 
     axs[0, 1].plot(timestamps, data_slice['steer'], color='blue')
     axs[0, 1].set_title("Steer")
     axs[0, 1].set_xlim(timestamps.min(), timestamps.max())
+    axs[0, 1].set_ylim(-1.0, 1.0)
 
     axs[1, 0].plot(timestamps, data_slice['brake'], color='red')
     axs[1, 0].set_title("Brake")
