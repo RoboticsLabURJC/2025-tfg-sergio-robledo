@@ -215,7 +215,19 @@ while running:
             #current_brake = 0.0
             vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-        
+
+
+        # Heeading 
+
+        error_px = image_center_x - center_x  # cateto opuesto (en píxeles)
+        dy_px = int(image.height - 0.53 * image.height)      # cateto adyacente (altura en píxeles desde top)
+
+        # Calcular ángulo del triángulo en radianes
+        heading_rad = np.arctan2(error_px, dy_px)
+
+        # Convertir a grados para guardar o visualizar
+        heading_deg = np.degrees(heading_rad)
+        heading = heading_deg
 
 
         # Recoger datos
@@ -223,8 +235,7 @@ while running:
         transform = vehicle.get_transform()
         velocity = vehicle.get_velocity()
         speed = np.linalg.norm([velocity.x, velocity.y, velocity.z])
-        heading = transform.rotation.yaw
-
+ 
         guardar_dato(
             timestamp=timestamp,
             rgb_img=array,
@@ -237,6 +248,8 @@ while running:
         )
 
         cv2.imshow("Mascara Segmentada", cv2.cvtColor(mask_rgb, cv2.COLOR_RGB2BGR))
+
+
         cv2.waitKey(1)
 
     for event in pygame.event.get():
