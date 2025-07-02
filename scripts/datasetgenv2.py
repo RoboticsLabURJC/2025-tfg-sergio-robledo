@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from collections import deque
+from threading import Lock
 import os
 import csv
 from datetime import datetime
@@ -21,7 +22,12 @@ Kd_steer = 0.00001
 last_error_throttle = 0
 Kp_throttle = 0.02
 
-latest_image = None
+# Mutex
+image_queue = deque(maxlen=1)
+queue_lock = Lock()
+MAX_IMAGE_AGE_MS = 150
+
+
 
 currtime = str(int(time.time() * 1000))
 
@@ -102,8 +108,10 @@ camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehic
 def camera_callback(image):
     print(f"[Frame {image.frame}] timestamp: {image.timestamp:.5f}")
 
-    global latest_image
-    latest_image = image
+
+    with queue_lock:
+        image_queue.clear()
+        image_queue.append((int(time.time() * 1000), image))
 
 
 def guardar_dato(timestamp, rgb_img, mask_class_img, accel, steer, brake, speed, heading):
@@ -138,11 +146,21 @@ while running:
     
     world.tick()
 
-    if latest_image:
+    # Comprobar si la imagen guardada en la cola es muy antigua o no, si lo es se da por perdida
+    # si no, se utiliza esa imagen. Asi se evita la conidcion de carrera.
+    with queue_lock:
+        if image_queue:
+            img_timestamp, image = image_queue[0]
+            age = int(time.time() * 1000) - img_timestamp
+            if age <= MAX_IMAGE_AGE_MS:
+                image = image_queue.popleft()[1]
+            else:
+                image = None  # Imagen muy vieja, descartada
+                print("Descartada")
+        else:
+            image = None
 
-        image = latest_image
-        latest_image = None  # Borra para evitar procesar 2 veces
-
+    if image:
         
         array = np.frombuffer(image.raw_data, dtype=np.uint8)
         array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
