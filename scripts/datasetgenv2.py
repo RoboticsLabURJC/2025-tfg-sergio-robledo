@@ -33,9 +33,9 @@ currtime = str(int(time.time() * 1000))
 
 DATASET_ID = "Deepracer_BaseMap_" + currtime
 BASE_DIR = "dataset"
-RGB_DIR = os.path.join(BASE_DIR, "rgb/rgb" + currtime)
-MASK_DIR = os.path.join(BASE_DIR, "masks/mask" + currtime)
-CSV_PATH = os.path.join(BASE_DIR, f"dataset_{DATASET_ID}.csv")
+RGB_DIR = os.path.join(DATASET_ID, "rgb")
+MASK_DIR = os.path.join(DATASET_ID, "masks")
+CSV_PATH = os.path.join(DATASET_ID, f"dataset.csv")
 
 os.makedirs(RGB_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
@@ -118,8 +118,8 @@ def guardar_dato(timestamp, rgb_img, mask_class_img, accel, steer, brake, speed,
     rgb_name = f"{timestamp}_rgb_{DATASET_ID}.png"
     mask_name = f"{timestamp}_mask_{DATASET_ID}.png"
 
-    rgb_path_rel = os.path.join("rgb/rgb" + currtime, rgb_name)
-    mask_path_rel = os.path.join("masks/mask" + currtime, mask_name)
+    rgb_path_rel = os.path.join("/rgb", rgb_name)
+    mask_path_rel = os.path.join("/masks" , mask_name)
 
     cv2.imwrite(os.path.join(RGB_DIR, rgb_name), rgb_img)
     cv2.imwrite(os.path.join(MASK_DIR, mask_name), cv2.cvtColor(mask_class_img, cv2.COLOR_RGB2BGR))
