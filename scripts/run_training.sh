@@ -7,8 +7,6 @@ DATASET_BASE="./datasets"
 TRAIN_SCRIPT="train.py"
 
 # Otros parámetros
-NUM_EPOCHS=5         # pruebas rápidas
-BATCH_SIZE=32
 EXPERIMENT_NAME="exp_debug_$(date +%s)"
 
 # Construir lista de --data_dir para cada subcarpeta Deepracer_BaseMap_*
@@ -23,16 +21,18 @@ done
 
 echo ""
 echo "🚀 Iniciando entrenamiento con:"
-echo "   Epochs     : $NUM_EPOCHS"
-echo "   Batch size : $BATCH_SIZE"
+echo "   Epochs     : 50"
+echo "   Batch size : 128"
 echo "   Experimento: $EXPERIMENT_NAME"
 echo ""
 
 # Ejecutar entrenamiento
 python $TRAIN_SCRIPT \
   $DATA_DIRS \
-  --num_epochs $NUM_EPOCHS \
-  --batch_size $BATCH_SIZE \
+  --num_epochs 50 \
+  --batch_size 128 \
   --base_dir "$EXPERIMENT_NAME" \
   --comment "Depuración con impresión y TensorBoard" \
-  --print_terminal True
+  --print_terminal True \
+  --mirrored_imgs \
+  --shuffle
