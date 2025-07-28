@@ -83,10 +83,26 @@ blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
 
+# -------------------------TRACK01-----------------------------
 spawn_point = carla.Transform(
     carla.Location(x=3, y=-1, z=0.5),
     carla.Rotation(yaw=-90)
 )
+
+#-------------------------TRACK02---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=-3.7, y=-4, z=0.5),
+#     carla.Rotation(yaw=-120)
+# )
+
+
+#-------------------------TRACK03---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=-7, y=-15, z=0.5),
+#     carla.Rotation(yaw=-15)
+# )
+
+
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
     print("Error al spawnear el vehículo")
