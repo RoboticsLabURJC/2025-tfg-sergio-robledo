@@ -67,6 +67,12 @@ spawn_point = carla.Transform(
 #     carla.Rotation(yaw=-15)
 # )
 
+#-------------------------TRACK04---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=17, y=-4.2, z=0.5),
+#     carla.Rotation(yaw=-15)
+# )
+
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
     print("Error al spawnear el vehículo")
