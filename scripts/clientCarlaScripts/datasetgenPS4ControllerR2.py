@@ -204,25 +204,37 @@ while running:
         if ready[0]:
             try:
                 buffer = conn.recv(1024).decode(errors='ignore').strip()
-                local_steer, local_throttle = current_steer, current_throttle
+                local_steer, local_throttle, local_brake = current_steer, current_throttle, 0.0
+
                 for line in buffer.splitlines():
-                    if "[ABS_X]" in line and "[R2]" in line:
-                        parts = line.strip().split("[ABS_X]")
-                        if len(parts) > 1:
-                            vals = parts[1].split("[R2]")
-                            if len(vals) == 2:
-                                val_x = int(vals[0].strip())
-                                val_ry = int(vals[1].strip())
+                    if "[ABS_X]" in line and "[R2]" in line and "[L2]" in line:
+                        try:
+                            parts = line.strip().split("[ABS_X]")
+                            if len(parts) > 1:
+                                vals = parts[1].split("[R2]")
+                                if len(vals) == 2:
+                                    val_x = int(vals[0].strip())
+                                    rest = vals[1].split("[L2]")
+                                    if len(rest) == 2:
+                                        val_r2 = int(rest[0].strip())
+                                        val_l2 = int(rest[1].strip())
 
-                                # Joystick izquierdo: steer de -1 a 1
-                                local_steer = (val_x - 127) / 128.0
-                                local_steer = max(-1.0, min(1.0, local_steer))
+                                        # 🎮 Steer: -1 a 1
+                                        local_steer = (val_x - 127) / 128.0
+                                        local_steer = max(-1.0, min(1.0, local_steer))
 
-                                # Joystick derecho (arriba = 255): throttle de 0.0 a 1
-                                local_throttle = max(0.0, min(0.5, (val_ry / 255.0)*0.5))
+                                        # ⚙️ Throttle (R2): 0 a 0.45
+                                        local_throttle = max(0.0, min(0.45, (val_r2 / 255.0) * 0.45))
 
+                                        # Brake (L2): 0 a 1 (inverso)
+                                        local_brake = max(0.0, min(1.0, (val_l2) / 255.0))
+                        except Exception as e:
+                            print("Error parsing joystick input:", e)
+
+                # Aplicar los valores actualizados
                 current_steer = local_steer
                 current_throttle = local_throttle
+                current_brake = local_brake
 
                 with queue_lock:
                     control_queue.clear()
@@ -234,7 +246,7 @@ while running:
 
 
 
-        vehicle.apply_control(carla.VehicleControl(throttle=current_throttle, steer=current_steer))
+        vehicle.apply_control(carla.VehicleControl(throttle=current_throttle, steer=current_steer, brake=current_brake))
 
         timestamp = int(datetime.utcnow().timestamp() * 1000)
         velocity = vehicle.get_velocity()
@@ -245,7 +257,7 @@ while running:
         if time.time() > start_time and control_queue:
             with queue_lock:
                 steer, throttle, brake = control_queue[0]
-            print("Throttle: ",throttle, "Steer: ", steer)
+            print("Throttle: ",throttle, "Steer: ", steer, "Break: ", brake)
             #guardar_dato(timestamp, array, mask_rgb, throttle, steer, brake, speed, heading)
 
         if camera_image_third:
