@@ -25,16 +25,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     print("? Connected to receiver")
 
     abs_x = 0
+    abs_z = 0     # L2
     abs_rz = 0    # R2
 
     for event in joystick.read_loop():
         if event.type == ecodes.EV_ABS:
             if event.code == ecodes.ABS_X:      # Joystick izquierdo (steer)
                 abs_x = event.value
+            elif event.code == ecodes.ABS_Z:    # L2
+                abs_z = event.value
             elif event.code == ecodes.ABS_RZ:   # R2
                 abs_rz = event.value
 
             # Enviar todos los valores sin normalizar
-            msg = f"[ABS_X] {abs_x}[R2] {abs_rz}\n"
+            msg = f"[ABS_X] {abs_x}[R2] {abs_rz}[L2] {abs_z}\n"
             s.sendall(msg.encode())
-
