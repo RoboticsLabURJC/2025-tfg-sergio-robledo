@@ -1,3 +1,11 @@
+#------------------------------------------------
+# Codigo para el ordenador conectado al mando Dualshock de Play Station,
+# que manda el mensaje a otro en remoto
+#-------------------------------------------
+#Este codigo permite mover el coche con los joysticks izquierdo y R2 y L2, izquierdo para
+# la direccion, R2 y L2 para acelerar y frenar
+# Es el codigo cliente para datasetgenPS4ControllerR2.py
+#------------------------------------------------
 import socket
 from evdev import InputDevice, categorize, ecodes, list_devices
 import select
@@ -14,19 +22,19 @@ for device in devices:
         break
 
 if not joystick:
-    print("? No PS4 controller found")
+    print("No PS4 controller found")
     exit()
 
-print(f"? Using device: {joystick.path} - {joystick.name}")
+print(f"Using device: {joystick.path} - {joystick.name}")
 
 # Conexión
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
-    print("? Connected to receiver")
+    print("Connected to receiver")
 
     abs_x = 0
-    abs_z = 0     # L2
-    abs_rz = 0    # R2
+    abs_z = 0 # L2
+    abs_rz = 0 # R2
 
     for event in joystick.read_loop():
         if event.type == ecodes.EV_ABS:
@@ -37,6 +45,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             elif event.code == ecodes.ABS_RZ:   # R2
                 abs_rz = event.value
 
-            # Enviar todos los valores sin normalizar
+            # Enviar todos los valores
             msg = f"[ABS_X] {abs_x}[R2] {abs_rz}[L2] {abs_z}\n"
             s.sendall(msg.encode())

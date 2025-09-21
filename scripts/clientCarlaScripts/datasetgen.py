@@ -1,3 +1,9 @@
+#------------------------------------------------
+#Codigo para generar el dataset necesario para 
+# el futuro entrenamiento del modelo
+#------------------------------------------------
+
+
 import carla
 import time
 import pygame
@@ -8,8 +14,6 @@ from collections import deque
 import os
 import csv
 from datetime import datetime
-
-
 
 
 current_throttle = 0.5
@@ -71,10 +75,36 @@ blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
 
+# -------------------------TRACK01-----------------------------
+#spawn_point = carla.Transform(
+#    carla.Location(x=3, y=-1, z=0.5),
+#    carla.Rotation(yaw=-90)
+#)
+
+#-------------------------TRACK02---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=-3.7, y=-4, z=0.5),
+#     carla.Rotation(yaw=-120)
+# )
+
+
+#-------------------------TRACK03---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=-7, y=-15, z=0.5),
+#     carla.Rotation(yaw=-15)
+# )
+
+#-------------------------TRACK04---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=17, y=-4.2, z=0.5),
+#     carla.Rotation(yaw=-15)
+# )
 spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1, z=0.5),
-    carla.Rotation(yaw=-90)
+    carla.Location(x=-10, y=21.2, z=1),
+    carla.Rotation(yaw=-15)
 )
+
+
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
     print("Error al spawnear el vehículo")

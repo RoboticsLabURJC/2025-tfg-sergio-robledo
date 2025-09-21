@@ -1,18 +1,18 @@
+#------------------------------------------------
+# Codigo para control manual del Deepracer directamente en Carla, en local.
+# Se utiliza simplemente para mover el coche por el mundo y observar sus fisicas y texturas
+#-------------------------------------------
+#Este codigo permite mover el coche con las teclas del propio teclado en local.
+# Se utiliza para observar todo el rato el vehiculo al GIRAR alrededor de el,
+# Utilizado para grabarle sobre todo.
+#------------------------------------------------
+
 import carla
 import time
 import pygame
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
-
-
-
-
-# #..........................................
-# Codigo para visualizar el coche y girar la camara alrededor de el
-# #..........................................
-
-
 
 
 HOST = '127.0.0.1'
@@ -40,7 +40,7 @@ weather = carla.WeatherParameters(
     wetness=0.0
 )
 world.set_weather(weather)
-print("🌅 Clima establecido en 'Sunset' (Atardecer)")
+print("Clima establecido en 'Sunset' (Atardecer)")
 
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)

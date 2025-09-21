@@ -1,3 +1,7 @@
+#------------------------------------------------
+#Codigo para la comprobacion de ls diferencia entre “tiempo simulado” y “tiempo de reloj real”
+# #..........................................
+
 import carla
 import time
 import pygame
@@ -10,7 +14,6 @@ from collections import deque
 # Otherwise the physics engine will try to recompute at once all the time spent
 # waiting for the client, this usually results in inconsistent or not very 
 # realistic physics.
-
 # Fixed time-step The simulation runs as fast as possible, 
 # simulating the same time increment on each step. To enable this 
 # mode set a fixed delta seconds in the world settings
@@ -33,7 +36,7 @@ world = client.get_world()
 #FPS
 settings = world.get_settings()
 settings.synchronous_mode = True
-settings.fixed_delta_seconds = 1.0 / 20.0
+settings.fixed_delta_seconds = 1.0 / 30.0
 world.apply_settings(settings)
 
 weather = carla.WeatherParameters(

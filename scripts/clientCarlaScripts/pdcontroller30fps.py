@@ -1,3 +1,9 @@
+#------------------------------------------------
+#Codigo para utilizar un controlador PD y desplazar el vehiculo en una pista
+# PD para steering y P para throttle para recorrer una pista.
+# Se emplea el modo sincrono y se fuerzan 30 Fps 
+# #..........................................
+
 import carla
 import time
 import pygame
@@ -5,15 +11,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from collections import deque
-
-
-#PARA 30 FPS DESCOMENTAR TANTO LA PARTE DE FPS COMO WORLD.TICK()
-# YA QUE ESTE COMANDO PERMITE PASAR DE FRAME EN FRAME
-
-
-# #..........................................
-# PD para steering y P para throttle para recorrer una pista
-# #..........................................
 
 # --- Inicialización de la gráfica ---
 # plt.ion()
@@ -46,7 +43,7 @@ VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer - RGB y Segmentacion Semantica")
+pygame.display.set_caption("DeepRacer RGB y Segmentacion Semantica")
 
 
 client = carla.Client(HOST, PORT)

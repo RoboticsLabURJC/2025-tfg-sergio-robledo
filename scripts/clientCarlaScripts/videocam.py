@@ -7,10 +7,7 @@ import sys
 # #..........................................
 # Codigo para spawnear con parametros una camara en distintos sitios y 
 # visualizar el deepracer desde distintos angulos
-# Con el parametro 0: se visualiza la pista desde una camara superior inclinada
-#                   -1: se visualiza la pista verticalmente, y solo el lugar de spawn
-#                   1: se visaliza toda la pista desde arriba del todo mirando verticalmente hacia abajo
-# el resto de parametros son para otras pistas usadas poara pruebas
+# Con argumentos de -1 a 7, cada uno para un spawnpoint distinto
 # #..........................................
 
 def main():
@@ -27,7 +24,7 @@ def main():
 
    
     cam_locations = {
-        1: carla.Location(x=2, y=-4, z=5),
+        1: carla.Location(x=-10, y=-21.2, z=30),
         2: carla.Location(x=8, y=-3, z=6),
         3: carla.Location(x=17, y=-3, z=5),
         4: carla.Location(x=16, y=-12, z=6),
@@ -67,6 +64,7 @@ def main():
 
     if cam_index == 7:
         cam_rotation = carla.Rotation(pitch=0)
+
 
     cam_transform = carla.Transform(cam_location, cam_rotation)
     

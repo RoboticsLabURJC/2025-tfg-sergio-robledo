@@ -1,3 +1,10 @@
+#------------------------------------------------
+#Codigo definitivo para generar el dataset necesario para 
+# el futuro entrenamiento del modelo, se obtiene por frame
+# la imagen rgv, la mascara, throttle, velocidad, steer, heading
+# En este caso con un controlador PD que utiliza la camara para
+# Detectar las lineas y centrarse
+#------------------------------------------------
 import carla
 import time
 import pygame
@@ -82,12 +89,12 @@ print("Clima establecido en 'Sunset'")
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
-
+# Pistas
 # -------------------------TRACK01-----------------------------
-spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1, z=0.5),
-    carla.Rotation(yaw=-90)
-)
+#spawn_point = carla.Transform(
+#    carla.Location(x=3, y=-1, z=0.5),
+#    carla.Rotation(yaw=-90)
+#)
 
 #-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
@@ -103,10 +110,16 @@ spawn_point = carla.Transform(
 # )
 
 #-------------------------TRACK04---------------------------------
-# spawn_point = carla.Transform(
-#     carla.Location(x=17, y=-4.2, z=0.5),
-#     carla.Rotation(yaw=-15)
-# )
+spawn_point = carla.Transform(
+     carla.Location(x=17, y=-4.2, z=0.5),
+     carla.Rotation(yaw=-15)
+)
+#spawn_point = carla.Transform(
+#    carla.Location(x=-9.9, y=21.2, z=0.5),
+#    carla.Rotation(yaw=-20)
+#)
+
+
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
@@ -128,7 +141,6 @@ camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehic
 
 def camera_callback(image):
     print(f"[Frame {image.frame}] timestamp: {image.timestamp:.5f}")
-
 
     with queue_lock:
         image_queue.clear()
@@ -163,8 +175,8 @@ vehicle.apply_control(carla.VehicleControl(throttle=current_throttle, steer=curr
 
 time.sleep(4)
 
-
-start_recording_time = time.time() + 5  # Esperar 5 segundos desde ahora
+# Esperar 3 segundos desde ahora para empezar a tomar datos
+start_recording_time = time.time() + 3 
 
 
 while running:
@@ -216,7 +228,6 @@ while running:
 
 
         # Aplicar control
-
         y = int(0.53 * image.height)
         row = mask_class[y]
         white_indices = np.where(row == 1)[0]
@@ -250,7 +261,7 @@ while running:
             abs_error = abs(error)
             last_error_throttle = abs_error
             throttle = 0.6 - Kp_throttle * abs_error
-            throttle = np.clip(throttle, 0.2, 0.6)
+            throttle = np.clip(throttle, 0.2, 0.8)#0.6 antes
 
         
             current_steer = steer
@@ -260,10 +271,9 @@ while running:
 
 
 
-        # Heeading 
-
+        # Heading 
         error_px = image_center_x - center_x  # cateto opuesto (en píxeles)
-        dy_px = int(image.height - 0.53 * image.height)      # cateto adyacente (altura en píxeles desde top)
+        dy_px = int(image.height - 0.53 * image.height) # cateto adyacente (altura en píxeles desde top)
 
         # Calcular ángulo del triángulo en radianes
         heading_rad = np.arctan2(error_px, dy_px)
@@ -279,7 +289,7 @@ while running:
         velocity = vehicle.get_velocity()
         speed = np.linalg.norm([velocity.x, velocity.y, velocity.z])
  
-        # Empezar pasasdos 5 segundos
+        # Empezar pasasdos 3 segundos
         if time.time() > start_recording_time:
             guardar_dato(
                 timestamp=timestamp,

@@ -1,4 +1,6 @@
-# === INFERENCIA AUTOMÁTICA EN CARLA CON MÁSCARAS COMO ENTRADA ===
+#------------------------------------------------
+#Codigo para la inferencia automatica utilizando las imagenes de la mascara
+# #..........................................
 
 import carla
 import time
@@ -10,31 +12,29 @@ from torchvision import transforms
 from utils.pilotnet import PilotNet
 from PIL import Image
 
-# === Cargar modelo entrenado (entrenado con máscaras) ===
-MODEL_PATH = "experiments/exp_debug_1753036959trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1758129759/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
 model.eval()
 
-# Transformación igual a la usada en entrenamiento
 transform = transforms.Compose([
+    transforms.Resize((66, 200)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
 ])
 
-# === Inicialización de CARLA ===
 HOST = '127.0.0.1'
 PORT = 2000
 VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 
 pygame.init()
-WIDTH, HEIGHT = 800, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer - Control con Máscaras")
 
-client = carla.Client(HOST, PORT)
-client.set_timeout(5.0)
+W, H = 800, 600
+screen = pygame.display.set_mode((W*2, H))
+pygame.display.set_caption("DeepRacer Inferencia MASK)")
+
+client = carla.Client(HOST, PORT); client.set_timeout(5.0)
 world = client.get_world()
 
 settings = world.get_settings()
@@ -42,41 +42,52 @@ settings.synchronous_mode = True
 settings.fixed_delta_seconds = 1.0 / 30.0
 world.apply_settings(settings)
 
-weather = carla.WeatherParameters(sun_altitude_angle=90.0)
+weather = carla.WeatherParameters(
+    cloudiness=80.0,
+    precipitation=0.0,
+    sun_altitude_angle=90.0,
+    fog_density=0.0,
+    wetness=0.0
+)
 world.set_weather(weather)
 
-blueprint_library = world.get_blueprint_library()
-vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
+bp_lib = world.get_blueprint_library()
+vehicle_bp = bp_lib.find(VEHICLE_MODEL)
 
-spawn_point = carla.Transform(carla.Location(x=3, y=-1, z=0.5), carla.Rotation(yaw=-90))
+
+#Track01
+spawn_point = carla.Transform(
+   carla.Location(x=3, y=-1, z=0.5),
+   carla.Rotation(yaw=-90)
+)
+
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
-    print("Error al spawnear el vehículo")
-    exit()
+    raise RuntimeError("Error al spawnear el vehículo")
 print(f"Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 
-# === Crear cámara frontal ===
-camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
-camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
-camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_rgb_bp.set_attribute('fov', '140')
+# Cámara frontal con la misma config que captura
+cam_bp = bp_lib.find('sensor.camera.rgb')
+cam_bp.set_attribute('image_size_x', str(W))
+cam_bp.set_attribute('image_size_y', str(H))
+cam_bp.set_attribute('fov', '140')
 
-transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
-camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
+cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
+camera_front = world.spawn_actor(cam_bp, cam_tf, attach_to=vehicle)
 
-# === Variables de control ===
-current_steer = 0.0
-current_throttle = 0.0
-image_ready = [None]
+# Compartidos
+frame_rgb = [None]      # RGB (como en captura)
+frame_mask_rgb = [None] # Máscara coloreada (como en captura)
 
 def camera_callback(image):
-    array = np.frombuffer(image.raw_data, dtype=np.uint8)
-    array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
-    bgr = array[:, :, ::-1]
-    rgb = bgr.copy()
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
-    # Segmentación por color
+    array = np.frombuffer(image.raw_data, dtype=np.uint8)
+    array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]  # BGRA -> BGR
+    bgr = array[:, :, ::-1] 
+    rgb = bgr.copy()         
+
+   
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
     lower_yellow = np.array([18, 50, 150])
     upper_yellow = np.array([40, 255, 255])
     mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
@@ -85,53 +96,62 @@ def camera_callback(image):
     upper_white = np.array([180, 30, 255])
     mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
-    # Máscara combinada de clases
     mask_class = np.zeros_like(mask_white, dtype=np.uint8)
-    mask_class[mask_white > 0] = 1
+    mask_class[mask_white > 0]  = 1
     mask_class[mask_yellow > 0] = 2
 
-    # Convertir máscara a RGB (como se usó en entrenamiento)
     mask_rgb = np.zeros_like(rgb)
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
-    mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
+    mask_rgb[mask_class == 2] = [255, 255,   0]  # amarillo
 
-    image_ready[0] = mask_rgb
+    frame_rgb[0] = rgb
+    frame_mask_rgb[0] = mask_rgb
+
 
 camera_front.listen(camera_callback)
 
 vehicle.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0))
-time.sleep(4)
+time.sleep(1.0)
 
-# === Bucle principal ===
 running = True
 while running:
     world.tick()
 
-    mask_rgb = image_ready[0]
-    if mask_rgb is not None:
-        resized = cv2.resize(mask_rgb, (200, 66))
-        pil_img = Image.fromarray(resized)
-        tensor_img = transform(pil_img).unsqueeze(0)
+    rgb = frame_rgb[0]
+    mask_rgb = frame_mask_rgb[0]
+
+    if rgb is not None and mask_rgb is not None:
+      
+        pil_img = Image.fromarray(mask_rgb)
+        tensor_img = transform(pil_img).unsqueeze(0)   # [1,3,66,200] normalizado
 
         with torch.no_grad():
             output = model(tensor_img)
             steer, throttle = output[0].tolist()
 
-        control = carla.VehicleControl(throttle=float(throttle), steer=float(steer))
-        vehicle.apply_control(control)
+        steer = float(np.clip(steer, -1.0, 1.0))
+        throttle = float(np.clip(throttle, 0.0, 0.8))
+        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+        print(f"steer={steer:+.3f} | thr={throttle:.3f}")
 
-        camera_img = pygame.surfarray.make_surface(mask_rgb.swapaxes(0, 1))
+   
+        surf_rgb  = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+        surf_mask = pygame.surfarray.make_surface(mask_rgb.swapaxes(0, 1))
 
+        surf_rgb  = pygame.transform.smoothscale(surf_rgb,  (W, H))
+        surf_mask = pygame.transform.smoothscale(surf_mask, (W, H))
 
-        screen.blit(camera_img, (0, 0))
+        screen.blit(surf_rgb,  (0,   0))
+        screen.blit(surf_mask, (W,   0))
         pygame.display.flip()
 
+    # Eventos
     for event in pygame.event.get():
         if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
             running = False
             break
 
-# === Limpieza ===
+# Limpieza
 settings = world.get_settings()
 settings.synchronous_mode = False
 settings.fixed_delta_seconds = None

@@ -1,8 +1,29 @@
+#------------------------------------------------
+# Codigo para control manual del Deepracer directamente en Carla, en local. Pero con un mando Dualshock
+# en remoto, se lanza con el codigo client de PS4, joystick_client.
+# Se utiliza simplemente para mover el coche por el mundo y observar sus fisicas y texturas
+#------------------------------------------------
+
+
 import carla
 import time
 import pygame
 import numpy as np
 import socket
+import matplotlib.pyplot as plt
+from collections import deque
+
+plt.ion()
+fig, ax = plt.subplots()
+history_len = 100
+
+steer_history = deque([0]*history_len, maxlen=history_len)
+throttle_history = deque([0]*history_len, maxlen=history_len)
+line1, = ax.plot(steer_history, label="Steer", color="blue")
+line2, = ax.plot(throttle_history, label="Throttle", color="green")
+ax.set_ylim(-1.1, 1.1)
+ax.legend()
+
 
 # Socket config
 HOST = 'localhost'
@@ -38,7 +59,7 @@ blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find('vehicle.finaldeepracer.aws_deepracer')
 
 spawn_point = carla.Transform(
-    carla.Location(x=-7, y=-15, z=0.5),
+    carla.Location(x=-10, y=21.2, z=1),
     carla.Rotation(yaw=-15)
 )
 
@@ -122,7 +143,18 @@ while running:
         # Speed display
         velocity = vehicle.get_velocity()
         speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5
-        print(f"🚗 Speed: {speed:.2f} m/s | Steer: {control.steer:.2f} | Throttle: {control.throttle:.2f} | Brake: {control.brake:.3f}")
+        print(f"Speed: {speed:.2f} m/s | Steer: {control.steer:.2f} | Throttle: {control.throttle:.2f} | Brake: {control.brake:.3f}")
+
+        steer_history.append(control.steer)
+        throttle_history.append(control.throttle)
+        line1.set_ydata(steer_history)
+        line2.set_ydata(throttle_history)
+        line1.set_xdata(range(len(steer_history)))
+        line2.set_xdata(range(len(throttle_history)))
+        ax.relim()
+        ax.autoscale_view()
+        plt.draw()
+        plt.pause(0.001)
 
     except KeyboardInterrupt:
         print("Interrupted")
@@ -134,4 +166,4 @@ vehicle.destroy()
 pygame.quit()
 conn.close()
 s.close()
-print("✅ Session ended.")
+print("Session ended.")

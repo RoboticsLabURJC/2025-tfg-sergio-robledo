@@ -9,7 +9,7 @@ from collections import deque
 
 # #..........................................
 # Codigo para seguir una recta y evaluar caracteristicas como
-# suspension, velocidad, friccion y otras cosas.
+# suspension, velocidad, friccion y otras cosas. Codigo de prueba
 # #..........................................
 
 

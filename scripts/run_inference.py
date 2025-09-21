@@ -1,11 +1,15 @@
+#------------------------------------------------
+#Codigo para la inferencia automatica para un frame determinado
+# De esta manera se puede obtener que devolveria el modelo para esa imagen rgb
+# #..........................................
+
 import torch
 from torchvision import transforms
 from PIL import Image
 from utils.pilotnet import PilotNet
 
-# === CONFIGURACIÓN ===
 MODEL_PATH = "experimentstrained_models/pilot_net_model_best_123.pth" 
-IMAGE_PATH = "datasets/Deepracer_BaseMap_1751911588893/rgb/1751904402454_rgb_Deepracer_BaseMap_1751911588893.png"     # imagen real de tu dataset
+IMAGE_PATH = "datasets/Deepracer_BaseMap_1751911588893/rgb/1751904402454_rgb_Deepracer_BaseMap_1751911588893.png"
 
 # === Cargar modelo ===
 image_shape = (66, 200, 3)
@@ -28,4 +32,4 @@ with torch.no_grad():
     output = model(image)
     steer, throttle = output[0].tolist()
 
-print(f"Predicción: 🧭 steer={steer:.4f}, ⚡ throttle={throttle:.4f}")
+print(f"Predicción: steer={steer:.4f}, ⚡ throttle={throttle:.4f}")

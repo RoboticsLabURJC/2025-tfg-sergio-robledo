@@ -26,7 +26,7 @@ class PilotNetDataset(Dataset):
             with open(csv_path, "r") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    img_rel_path = row["rgb_path"].lstrip("/")  # ruta relativa, e.g. rgb/frame_001.png
+                    img_rel_path = row["mask_path"].lstrip("/")  # ruta relativa, e.g. rgb/frame_001.png
                     img_path = os.path.join(folder, img_rel_path)  # ruta completa
 
                     if os.path.isfile(img_path):

@@ -1,3 +1,10 @@
+#------------------------------------------------
+# Codigo para control manual del Deepracer directamente en Carla, en local. Pero con un mando de 
+# Nintendo en remoto, se lanza con el codigo client de nintendo, joystick_client.
+# Se utiliza simplemente para mover el coche por el mundo y observar sus fisicas y texturas
+#------------------------------------------------
+
+
 import carla
 import time
 import pygame
@@ -20,7 +27,7 @@ print(f"Connected from {addr}")
 WIDTH, HEIGHT = 800, 600
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer - Remote control")
+pygame.display.set_caption("DeepRacer Remote control")
 
 client = carla.Client('127.0.0.1', 2000)
 client.set_timeout(5.0)

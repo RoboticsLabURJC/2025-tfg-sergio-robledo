@@ -1,3 +1,10 @@
+#------------------------------------------------
+# Codigo para control manual del Deepracer directamente en Carla, en local.
+# Se utiliza simplemente para mover el coche por el mundo y observar sus fisicas y texturas
+#-------------------------------------------
+#Este codigo permite mover el coche con las teclas del propio teclado en local
+#------------------------------------------------
+
 import carla
 import time
 import pygame
@@ -12,7 +19,6 @@ from collections import deque
 #     S: frenar
 #     D: Girar a la derecha
 # #..........................................
-
 
 
 # # --- Inicialización de la gráfica ---
@@ -59,7 +65,6 @@ print("Clima establecido en Sunset")
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
-#
 spawn_point = carla.Transform(carla.Location(x=2.95, y=-3.7, z=0.6),
                 carla.Rotation(pitch=0, yaw=-90, roll=0))
 
@@ -79,12 +84,12 @@ camera_rgb_bp.set_attribute('fov', '90')
 
 # camera_rgb_transform = carla.Transform(carla.Location(x= 0.2 ,y=-0.3, z=0.1),
 #                             carla.Rotation(pitch=10, yaw=120, roll=0))
+
 camera_rgb_transform = carla.Transform(carla.Location(x=-1, z=0.5))
 camera_rgb = world.spawn_actor(camera_rgb_bp, camera_rgb_transform, attach_to=vehicle)
 
 
 camera_image_rgb = None
-
 
 def process_rgb(image):
     global camera_image_rgb
@@ -92,7 +97,6 @@ def process_rgb(image):
     array = np.reshape(array, (image.height, image.width, 4))[:, :, :3]
     array = array[:, :, ::-1]
     camera_image_rgb = pygame.surfarray.make_surface(array.swapaxes(0, 1))
-
 
 
 camera_rgb.listen(lambda image: process_rgb(image))

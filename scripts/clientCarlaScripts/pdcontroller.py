@@ -1,3 +1,8 @@
+#------------------------------------------------
+#Codigo para utilizar un controlador PD y desplazar el vehiculo en una pista
+# PD para steering y P para throttle para recorrer una pista
+# #..........................................
+
 import carla
 import time
 import pygame
@@ -7,9 +12,6 @@ import cv2
 from collections import deque
 
 
-# #..........................................
-# PD para steering y P para throttle para recorrer una pista
-# #..........................................
 
 # --- Inicialización de la gráfica ---
 # plt.ion()
@@ -23,6 +25,7 @@ from collections import deque
 # ax.set_ylim(-1.1, 1.1)
 # ax.legend()
 #..........................................
+
 current_steer = 0.0
 current_throttle = 0.0
 
@@ -42,7 +45,7 @@ VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer - RGB y Segmentación Semántica")
+pygame.display.set_caption("DeepRacer RGB y Segmentación Semántica")
 
 
 client = carla.Client(HOST, PORT)
