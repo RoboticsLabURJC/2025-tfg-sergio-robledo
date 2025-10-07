@@ -14,7 +14,7 @@ class PilotNetDataset(Dataset):
         self.preprocessing = preprocessing
         self.mirrored = mirrored
 
-        # Recorre todas las carpetas (cada una tiene su dataset.csv)
+        # Recorre todas las carpetas (cada una tiene su dataset.csv)g
         for folder in folder_paths:
             csv_path = os.path.join(folder, "dataset.csv")
             rgb_dir = os.path.join(folder, "rgb")  # base para imágenes
@@ -26,7 +26,7 @@ class PilotNetDataset(Dataset):
             with open(csv_path, "r") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    img_rel_path = row["mask_path"].lstrip("/")  # ruta relativa, e.g. rgb/frame_001.png
+                    img_rel_path = row["rgb_path"].lstrip("/")  # ruta relativa, e.g. rgb/frame_001.png
                     img_path = os.path.join(folder, img_rel_path)  # ruta completa
 
                     if os.path.isfile(img_path):
@@ -45,6 +45,8 @@ class PilotNetDataset(Dataset):
 
         self.image_shape = (66, 200, 3)  # height, width, channels
         self.num_labels = 2
+
+        
 
     def __len__(self):
         return len(self.image_paths)

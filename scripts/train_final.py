@@ -27,7 +27,7 @@ def parse_args():
 
     # Hparams
     parser.add_argument("--num_epochs", type=int, default=30, help="Number of Epochs")
-    parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--batch_size", type=int, default=128, help="Batch size")
     parser.add_argument("--save_iter", type=int, default=50, help="Iterations between saves")
     parser.add_argument("--print_terminal", action="store_true", help="Print progress every 10 steps")
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     writer_output.writerow(["epoch", "val_mse", "val_mae"])
 
     # ===========================
-    # SIN AUGMENTATIONS (determinista)
+    # SIN AUGMENTATIONS
     # ===========================
     transformations_eval = createTransform([])   # ToTensor + Normalize; SIN augs
     transformations_train = createTransform([])  # igual que eval (sin augs)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     print("len(train_dataset) =", len(train_dataset))
     print("len(val_dataset)   =", len(val_dataset))
 
-    # Loaders (sin shuffle)
+    # Loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
     val_loader   = DataLoader(val_dataset,   batch_size=batch_size,

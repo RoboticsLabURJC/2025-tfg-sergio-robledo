@@ -12,7 +12,7 @@ from torchvision import transforms
 from utils.pilotnet import PilotNet
 from PIL import Image
 
-MODEL_PATH = "experiments/exp_debug_1758398302/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1759610474/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -50,10 +50,10 @@ blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 
 # -------------------------TRACK01-----------------------------
-# spawn_point = carla.Transform(
-#     carla.Location(x=3, y=-1, z=0.5),
-#     carla.Rotation(yaw=-90)
-# )
+spawn_point = carla.Transform(
+    carla.Location(x=3, y=-1.3, z=0.5),
+    carla.Rotation(yaw=-90)
+)
 
 #-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
@@ -75,10 +75,10 @@ vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 # )
 
 #-------------------------BIGTRACK---------------------------------
-spawn_point = carla.Transform(
-     carla.Location(x=-10, y=21.2, z=1),
-     carla.Rotation(yaw=-17)
-)
+# spawn_point = carla.Transform(
+#      carla.Location(x=-10, y=21.2, z=1),
+#      carla.Rotation(yaw=-17)
+# )
 
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -91,7 +91,7 @@ print(f"Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
 camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
 camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
 camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_rgb_bp.set_attribute('fov', '140')
+camera_rgb_bp.set_attribute('fov', '90')
 
 transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
