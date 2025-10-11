@@ -1,18 +1,18 @@
-#------------------------------------------------
-#Codigo para la inferencia automatica utilizando las imagenes rgb
-# #..........................................
-
-import carla
-import time
-import pygame
-import numpy as np
-import cv2
-import torch
+# ------------------------------------------------
+# Inferencia automática con dos cámaras: PID (FOV 140) + NN (FOV 90)
+# ------------------------------------------------
+import carla, time, pygame, numpy as np, cv2, torch
 from torchvision import transforms
 from utils.pilotnet import PilotNet
 from PIL import Image
 
-MODEL_PATH = "experiments/exp_debug_1759610474/trained_models/pilot_net_model_best_123.pth"
+pid_on = True
+prev_timeglobal_var = 0.0
+last_error_steer = 0.0
+Kp_steer, Kd_steer = 0.1, 1e-5
+Kp_throttle = 0.02
+
+MODEL_PATH = "experiments/exp_debug_1760202415/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -24,15 +24,16 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
 ])
 
-
-HOST = '127.0.0.1'
-PORT = 2000
+HOST, PORT = '127.0.0.1', 2000
 VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
+WIDTH, HEIGHT = 800, 600
+FPS = 30.0
+FIXED_DT = 1.0 / FPS
+WARMUP_SEC = 20.0  # tiempo de PID antes de pasar a la red
 
 pygame.init()
-WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer Control automático")
+pygame.display.set_caption("DeepRacer - PID 140° -> Red 90°")
 
 client = carla.Client(HOST, PORT)
 client.set_timeout(5.0)
@@ -40,116 +41,195 @@ world = client.get_world()
 
 settings = world.get_settings()
 settings.synchronous_mode = True
-settings.fixed_delta_seconds = 1.0 / 30.0
+settings.fixed_delta_seconds = FIXED_DT
 world.apply_settings(settings)
 
-weather = carla.WeatherParameters(sun_altitude_angle=90.0)
-world.set_weather(weather)
 
-blueprint_library = world.get_blueprint_library()
-vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
-
-# -------------------------TRACK01-----------------------------
-spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1.3, z=0.5),
-    carla.Rotation(yaw=-90)
+weather = carla.WeatherParameters(
+    cloudiness=80.0,
+    precipitation=0.0,
+    sun_altitude_angle=90.0,
+    fog_density=0.0,
+    wetness=0.0
 )
-
-#-------------------------TRACK02---------------------------------
+world.set_weather(weather)
+bp = world.get_blueprint_library()
+vehicle_bp = bp.find(VEHICLE_MODEL)
+# Pistas
+# -------------------------TRACK01-----------------------------
 # spawn_point = carla.Transform(
-#     carla.Location(x=-3.7, y=-4, z=0.5),
-#     carla.Rotation(yaw=-120)
+#     carla.Location(x=3, y=-1, z=0.5),
+#     carla.Rotation(yaw=-90)
+# )
+
+#-------------------------TRACK---------------------------------
+# spawn_point = carla.Transform(
+#    carla.Location(x=-3.7, y=-4, z=0.5),
+#    carla.Rotation(yaw=-120)
 # )
 
 
 #-------------------------TRACK03---------------------------------
-#spawn_point = carla.Transform(
-#    carla.Location(x=-7, y=-15, z=0.5),
-#    carla.Rotation(yaw=-15)
-#)
-
-#-------------------------TRACK04---------------------------------
 # spawn_point = carla.Transform(
-#     carla.Location(x=17, y=-4.2, z=0.5),
+#     carla.Location(x=-8, y=-15, z=0.5),
 #     carla.Rotation(yaw=-15)
 # )
 
-#-------------------------BIGTRACK---------------------------------
+#-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
-#      carla.Location(x=-10, y=21.2, z=1),
-#      carla.Rotation(yaw=-17)
+#    carla.Location(x=17, y=-4.6, z=0.5),
+#    carla.Rotation(yaw=180-15)
 # )
 
+#-------------------------TRACK04---------------------------------
+spawn_point = carla.Transform(
+    carla.Location(x=-10, y=21.2, z=1),
+    carla.Rotation(yaw=-15)
+)
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
-    print("Error al spawnear el vehículo")
-    exit()
-print(f"Vehículo {VEHICLE_MODEL} spawneado en {spawn_point.location}")
+    print("Error al spawnear el vehículo"); raise SystemExit
+print("Vehículo spawneado")
 
+# --- cámaras ---
+cam_bp_pid = bp.find('sensor.camera.rgb')
+cam_bp_pid.set_attribute('image_size_x', str(WIDTH))
+cam_bp_pid.set_attribute('image_size_y', str(HEIGHT))
+cam_bp_pid.set_attribute('fov', '140')
+cam_bp_pid.set_attribute('sensor_tick', '0.0')  # 1 frame por tick
 
-camera_rgb_bp = blueprint_library.find('sensor.camera.rgb')
-camera_rgb_bp.set_attribute('image_size_x', str(WIDTH))
-camera_rgb_bp.set_attribute('image_size_y', str(HEIGHT))
-camera_rgb_bp.set_attribute('fov', '90')
+cam_bp_net = bp.find('sensor.camera.rgb')
+cam_bp_net.set_attribute('image_size_x', str(WIDTH))
+cam_bp_net.set_attribute('image_size_y', str(HEIGHT))
+cam_bp_net.set_attribute('fov', '90')
+cam_bp_net.set_attribute('sensor_tick', '0.0')
 
-transform_front = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
-camera_front = world.spawn_actor(camera_rgb_bp, transform_front, attach_to=vehicle)
+cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
+cam_pid = world.spawn_actor(cam_bp_pid, cam_tf, attach_to=vehicle)
+cam_net = world.spawn_actor(cam_bp_net, cam_tf, attach_to=vehicle)
 
+# buffers de frames
+rgb_pid_buf = [None]  # FOV 140 para PID
+rgb_net_buf = [None]  # FOV 90 para la red
 
-current_steer = 0.0
-current_throttle = 0.0
-image_ready = [None]  
+def cb_pid(image: carla.Image):
+    bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
+    bgr  = bgra[:, :, :3]
+    rgb_pid_buf[0] = bgr[:, :, ::-1]
 
-def camera_callback(image):
-    # raw_data = BGRA
-    a = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
-    rgb = a[:, :, :3][:, :, ::-1]   # B,G,R -> R,G,B
-    image_ready[0] = rgb
+def cb_net(image: carla.Image):
+    global prev_timeglobal_var
 
-camera_front.listen(camera_callback)
+    timeglobal_var = image.timestamp 
+    fps_toprint = timeglobal_var - prev_timeglobal_var 
+    print(1/fps_toprint) 
+    prev_timeglobal_var = timeglobal_var
+
+    bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
+    bgr  = bgra[:, :, :3]
+    rgb_net_buf[0] = bgr[:, :, ::-1]
+
+cam_pid.listen(cb_pid)
+cam_net.listen(cb_net)
 
 vehicle.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0))
-time.sleep(4)
+time.sleep(1.0)
 
+start_sim = world.get_snapshot().timestamp.elapsed_seconds
 running = True
 while running:
     world.tick()
+    sim_t = world.get_snapshot().timestamp.elapsed_seconds
 
-    rgb = image_ready[0]
-    if rgb is not None:
+    # cambio por tiempo (fuera de cualquier if de detección)
+    if pid_on and (sim_t - start_sim) >= WARMUP_SEC:
+        pid_on = False
 
-        pil_img = Image.fromarray(rgb)
-        tensor_img = transform(pil_img).unsqueeze(0)
+    # eventos (ESC para salir, SPACE para alternar manualmente)
+    for e in pygame.event.get():
+        if e.type == pygame.QUIT: running = False
+        if e.type == pygame.KEYDOWN:
+            if e.key == pygame.K_ESCAPE: running = False
+            if e.key == pygame.K_SPACE:  pid_on = not pid_on
 
-        # Inferencia
-        with torch.no_grad():
-            output = model(tensor_img)
-            steer, throttle = output[0].tolist()
+    if pid_on:
+        # ======== PID con la cámara de 140° ========
+        rgb_pid = rgb_pid_buf[0]
+        if rgb_pid is None:
+            continue
 
+        hsv = cv2.cvtColor(rgb_pid, cv2.COLOR_RGB2HSV)
+        mask_y = cv2.inRange(hsv, np.array([18, 50, 150]), np.array([40, 255, 255]))
+        mask_w = cv2.inRange(hsv, np.array([0, 0, 200]),  np.array([180, 30, 255]))
 
-        print(f"steer={steer:+.3f} thr={throttle:.3f}")
+        mask_c = np.zeros_like(mask_w, dtype=np.uint8)
+        mask_c[mask_w > 0] = 1
+        mask_c[mask_y > 0] = 2
 
-        # Aplicar control
-        control = carla.VehicleControl(throttle=float(throttle), steer=float(steer))
-        vehicle.apply_control(control)
+        h, w = mask_c.shape
+        y = int(0.53 * h)
+        row = mask_c[y]
+        white_idx = np.where(row == 1)[0]
 
-        # Mostrar imagen
-        camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
-        screen.blit(camera_img_front, (0, 0))
+        cx = None
+        if len(white_idx) > 10:
+            cx = (white_idx[0] + white_idx[-1]) // 2
+
+        # control por defecto
+        steer, throttle = 0.0, 0.25
+
+        if cx is not None:
+            img_cx = w // 2
+            error = -100.0 * (img_cx - cx) / img_cx
+            # PID (PD en este caso)
+          
+            derivative = error - last_error_steer
+            steer = np.clip(Kp_steer * error + Kd_steer * derivative, -1.0, 1.0)
+            last_error_steer = error
+
+            throttle = np.clip(0.8 - Kp_throttle * abs(error), 0.2, 0.6)
+
+        vehicle.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer)))
+
+        # overlay sencillo para ver la línea
+        vis = rgb_pid.copy()
+        if cx is not None:
+            cv2.line(vis, (0, y), (w-1, y), (100,100,100), 1)
+            cv2.line(vis, (w//2, 0), (w//2, h), (128,128,128), 1)
+            cv2.circle(vis, (cx, y), 4, (255,0,0), -1)
+
+        surf = pygame.surfarray.make_surface(vis.swapaxes(0,1))
+        screen.blit(surf, (0,0))
         pygame.display.flip()
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-            running = False
-            break
+    else:
+        # ======== Inferencia con la cámara de 90° ========
+        rgb_net = rgb_net_buf[0]
+        if rgb_net is None:
+            continue
 
-# === Limpieza ===
-settings = world.get_settings()
-settings.synchronous_mode = False
-settings.fixed_delta_seconds = None
-world.apply_settings(settings)
-camera_front.stop()
-camera_front.destroy()
-vehicle.destroy()
+        pil_img = Image.fromarray(rgb_net)
+        tensor_img = transform(pil_img).unsqueeze(0)
+
+        with torch.no_grad():
+            out = model(tensor_img)
+            steer, throttle = out[0].tolist()
+
+        steer    = float(np.clip(steer,    -1.0, 1.0))
+        throttle = float(np.clip(throttle,  0.0, 1.0))
+        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+
+        print("Throttle: ",throttle," Steer= ",steer)
+        surf = pygame.surfarray.make_surface(rgb_net.swapaxes(0,1))
+        screen.blit(surf, (0,0))
+        pygame.display.flip()
+
+# limpieza
+try: cam_pid.stop(); cam_pid.destroy()
+except: pass
+try: cam_net.stop(); cam_net.destroy()
+except: pass
+try: vehicle.destroy()
+except: pass
 pygame.quit()
