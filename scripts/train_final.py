@@ -13,20 +13,25 @@ import numpy as np
 from copy import deepcopy
 from tqdm import tqdm
 import csv
+from torch.utils.data import Subset
+from torchvision import transforms
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data_dir", action='append', required=True, help="Directory(ies) for Train Data")
     parser.add_argument("--test_dir", action='append', help="Directory(ies) for Test Data")
-    parser.add_argument("--val_dir", action='append', required=True, help="Directory(ies) for Validation Data")
+    #parser.add_argument("--val_dir", action='append', required=True, help="Directory(ies) for Validation Data")
+    parser.add_argument("--val_split", type=float, default=0.2,
+                        help="Proporción para validación (por defecto 0.2 = 20%)")
     parser.add_argument("--preprocess", action='append', default=None,
                         help="preprocessing info: choose from crop/nocrop and normal/extreme")
     parser.add_argument("--base_dir", type=str, default='/home/sergior/Downloads/pruebas', help="Where to save outputs")
     parser.add_argument("--comment", type=str, default='No augs / no shuffle / no mirror', help="Experiment comment")
 
     # Hparams
-    parser.add_argument("--num_epochs", type=int, default=30, help="Number of Epochs")
+    parser.add_argument("--num_epochs", type=int, default=80, help="Number of Epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--batch_size", type=int, default=128, help="Batch size")
     parser.add_argument("--save_iter", type=int, default=50, help="Iterations between saves")
@@ -40,15 +45,15 @@ if __name__ == "__main__":
     args = parse_args()
 
     print("TRAIN dirs:", args.data_dir)
-    print("VAL dirs  :", args.val_dir)
+    #print("VAL dirs  :", args.val_dir)
     print("TEST dirs :", args.test_dir)
 
     # Avisos de solape
-    if args.test_dir:
-        print("Overlap TRAIN-TEST:", set(args.data_dir).intersection(set(args.test_dir)))
-    print("Overlap TRAIN-VAL :", set(args.data_dir).intersection(set(args.val_dir)))
-    if args.test_dir:
-        print("Overlap VAL-TEST :", set(args.test_dir).intersection(set(args.val_dir)))
+    # if args.test_dir:
+    #     print("Overlap TRAIN-TEST:", set(args.data_dir).intersection(set(args.test_dir)))
+    # print("Overlap TRAIN-VAL :", set(args.data_dir).intersection(set(args.val_dir)))
+    # if args.test_dir:
+    #     print("Overlap VAL-TEST :", set(args.test_dir).intersection(set(args.val_dir)))
 
     # Convierte args en dict y guarda
     exp_setup = vars(args)
@@ -91,31 +96,43 @@ if __name__ == "__main__":
     # ===========================
     # SIN AUGMENTATIONS
     # ===========================
-    transformations_eval = createTransform([])   # ToTensor + Normalize; SIN augs
-    transformations_train = createTransform([])  # igual que eval (sin augs)
+    # transformations_eval = createTransform([])   # ToTensor + Normalize; SIN augs
+    # transformations_train = createTransform([])  # igual que eval (sin augs)
 
     # ===========================
-    # Datasets SIEMPRE por carpetas (sin split)
+    # Dataset único y split 80/20
     # ===========================
-    # TRAIN (sin mirroring)
-    train_dataset = PilotNetDataset(
-        args.data_dir,
+
+    # ===== Transform común para todo (train/val/test/inferencia) =====
+    COMMON_TF = transforms.Compose([
+        transforms.Resize((66, 200)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ])
+
+    full_dataset = PilotNetDataset(
+        args.data_dir,            
         mirrored=False,
-        transform=transformations_train,
+        transform=COMMON_TF,   # sin augs
         preprocessing=args.preprocess
     )
 
-    # VAL (sin mirroring)
-    val_dataset = PilotNetDataset(
-        args.val_dir,
-        mirrored=False,
-        transform=transformations_eval,
-        preprocessing=args.preprocess
-    )
+    N = len(full_dataset)
+    rng = np.random.RandomState(args.seed)
+    indices = np.arange(N)
+    rng.shuffle(indices)
 
-    print("len(train_dataset) =", len(train_dataset))
-    print("len(val_dataset)   =", len(val_dataset))
+    n_val = int(round(args.val_split * N))
+    val_idx = indices[:n_val]
+    train_idx = indices[n_val:]
 
+
+    train_dataset = Subset(full_dataset, train_idx)
+    val_dataset   = Subset(full_dataset, val_idx)
+
+    print(f"Samples totales: {N}  |  train: {len(train_dataset)}  |  val: {len(val_dataset)}")
+    
+    
     # Loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
@@ -124,10 +141,11 @@ if __name__ == "__main__":
 
     # Modelo (usa un dataset de probe para obtener shape y #labels)
     probe_ds = PilotNetDataset(args.data_dir, mirrored=False,
-                               transform=transformations_eval,
+                               transform=COMMON_TF,
                                preprocessing=args.preprocess)
 
     pilotModel = PilotNet(probe_ds.image_shape, probe_ds.num_labels).to(device)
+    
     ckpt_latest = os.path.join(model_save_dir, f'pilot_net_model_{random_seed}.pth')
     if os.path.isfile(ckpt_latest):
         pilotModel.load_state_dict(torch.load(ckpt_latest, map_location=device))
@@ -214,7 +232,6 @@ if __name__ == "__main__":
 
     # ======= TEST =======
     pilotModel = best_model
-    transformations_val = createTransform([])
 
     test_dirs = args.test_dir if args.test_dir is not None else args.data_dir[-1:]
     if args.test_dir is not None:
@@ -225,7 +242,7 @@ if __name__ == "__main__":
     test_set = PilotNetDataset(
         test_dirs,
         mirrored=False,
-        transform=transformations_val,
+        transform=COMMON_TF,
         preprocessing=args.preprocess
     )
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
