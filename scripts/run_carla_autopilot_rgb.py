@@ -12,7 +12,7 @@ last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 
-MODEL_PATH = "experiments/exp_debug_1760202415/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1760350334/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -57,10 +57,10 @@ bp = world.get_blueprint_library()
 vehicle_bp = bp.find(VEHICLE_MODEL)
 # Pistas
 # -------------------------TRACK01-----------------------------
-# spawn_point = carla.Transform(
-#     carla.Location(x=3, y=-1, z=0.5),
-#     carla.Rotation(yaw=-90)
-# )
+spawn_point = carla.Transform(
+    carla.Location(x=3, y=-1, z=0.5),
+    carla.Rotation(yaw=-90)
+)
 
 #-------------------------TRACK---------------------------------
 # spawn_point = carla.Transform(
@@ -82,10 +82,10 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------------------TRACK04---------------------------------
-spawn_point = carla.Transform(
-    carla.Location(x=-10, y=21.2, z=1),
-    carla.Rotation(yaw=-15)
-)
+# spawn_point = carla.Transform(
+#     carla.Location(x=-10, y=21.2, z=1),
+#     carla.Rotation(yaw=-15)
+# )
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
@@ -138,6 +138,14 @@ time.sleep(1.0)
 
 start_sim = world.get_snapshot().timestamp.elapsed_seconds
 running = True
+
+infer_tf = transforms.Compose([
+            transforms.Resize((66, 200)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
+        ])
+
+
 while running:
     world.tick()
     sim_t = world.get_snapshot().timestamp.elapsed_seconds
@@ -209,15 +217,16 @@ while running:
         if rgb_net is None:
             continue
 
-        pil_img = Image.fromarray(rgb_net)
-        tensor_img = transform(pil_img).unsqueeze(0)
+        
+        pil_img = Image.fromarray(rgb_net)     # asegúrate de que rgb es realmente RGB
+        x = infer_tf(pil_img).unsqueeze(0)
 
         with torch.no_grad():
-            out = model(tensor_img)
+            out = model(x)
             steer, throttle = out[0].tolist()
 
-        steer    = float(np.clip(steer,    -1.0, 1.0))
-        throttle = float(np.clip(throttle,  0.0, 1.0))
+        # steer    = float(np.clip(steer,    -1.0, 1.0))
+        # throttle = float(np.clip(throttle,  0.0, 1.0))
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
         print("Throttle: ",throttle," Steer= ",steer)
