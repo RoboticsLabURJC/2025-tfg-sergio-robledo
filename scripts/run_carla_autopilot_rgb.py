@@ -6,13 +6,13 @@ from torchvision import transforms
 from utils.pilotnet import PilotNet
 from PIL import Image
 
-pid_on = True
+pid_on = False
 prev_timeglobal_var = 0.0
 last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 
-MODEL_PATH = "experiments/exp_debug_1760350334/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1760371287/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -57,16 +57,16 @@ bp = world.get_blueprint_library()
 vehicle_bp = bp.find(VEHICLE_MODEL)
 # Pistas
 # -------------------------TRACK01-----------------------------
-spawn_point = carla.Transform(
-    carla.Location(x=3, y=-1, z=0.5),
-    carla.Rotation(yaw=-90)
-)
+# spawn_point = carla.Transform(
+#     carla.Location(x=3, y=-1, z=0.5),
+#     carla.Rotation(yaw=180-90)
+# )
 
 #-------------------------TRACK---------------------------------
-# spawn_point = carla.Transform(
-#    carla.Location(x=-3.7, y=-4, z=0.5),
-#    carla.Rotation(yaw=-120)
-# )
+spawn_point = carla.Transform(
+   carla.Location(x=-3.7, y=-4, z=0.5),
+   carla.Rotation(yaw=-120)
+)
 
 
 #-------------------------TRACK03---------------------------------
@@ -77,8 +77,8 @@ spawn_point = carla.Transform(
 
 #-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
-#    carla.Location(x=17, y=-4.6, z=0.5),
-#    carla.Rotation(yaw=180-15)
+#    carla.Location(x=17, y=-4.8, z=0.5),
+#    carla.Rotation(yaw=180-10)
 # )
 
 #-------------------------TRACK04---------------------------------
@@ -105,13 +105,33 @@ cam_bp_net.set_attribute('image_size_y', str(HEIGHT))
 cam_bp_net.set_attribute('fov', '90')
 cam_bp_net.set_attribute('sensor_tick', '0.0')
 
+
+cam_bp_thirdperson = bp.find('sensor.camera.rgb')
+cam_bp_thirdperson.set_attribute('image_size_x', str(WIDTH))
+cam_bp_thirdperson.set_attribute('image_size_y', str(HEIGHT))
+cam_bp_thirdperson.set_attribute('fov', '90')
+cam_bp_thirdperson.set_attribute('sensor_tick', '0.0')
+
+
 cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
 cam_pid = world.spawn_actor(cam_bp_pid, cam_tf, attach_to=vehicle)
 cam_net = world.spawn_actor(cam_bp_net, cam_tf, attach_to=vehicle)
 
+cam_tf_third = carla.Transform(
+    carla.Location(x=-1.0, y=0.0, z=0.7),
+    carla.Rotation(pitch=-12, yaw=0)  
+)
+cam_thirdperson = world.spawn_actor(cam_bp_thirdperson, cam_tf_third, attach_to=vehicle)
+
 # buffers de frames
 rgb_pid_buf = [None]  # FOV 140 para PID
 rgb_net_buf = [None]  # FOV 90 para la red
+rgb_third_buf = [None] # Tercera persona
+
+def cb_third(image: carla.Image):
+    bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
+    bgr  = bgra[:, :, :3]
+    rgb_third_buf[0] = bgr[:, :, ::-1]
 
 def cb_pid(image: carla.Image):
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
@@ -130,6 +150,7 @@ def cb_net(image: carla.Image):
     bgr  = bgra[:, :, :3]
     rgb_net_buf[0] = bgr[:, :, ::-1]
 
+cam_thirdperson.listen(cb_third)
 cam_pid.listen(cb_pid)
 cam_net.listen(cb_net)
 
@@ -144,6 +165,23 @@ infer_tf = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
         ])
+
+
+def draw_with_pip(main_rgb, pip_rgb):
+    # main (tercera persona) a tamaño completo
+    if main_rgb is not None:
+        main_surf = pygame.surfarray.make_surface(main_rgb.swapaxes(0, 1))
+        screen.blit(main_surf, (0, 0))
+
+    # PiP (esquina superior derecha)
+    if pip_rgb is not None:
+        pip_w = WIDTH // 3
+        pip_h = HEIGHT // 3
+        pip_small = cv2.resize(pip_rgb, (pip_w, pip_h))
+        pip_surf = pygame.surfarray.make_surface(pip_small.swapaxes(0, 1))
+        screen.blit(pip_surf, (WIDTH - pip_w - 8, 8))
+
+    pygame.display.flip()
 
 
 while running:
@@ -207,9 +245,8 @@ while running:
             cv2.line(vis, (w//2, 0), (w//2, h), (128,128,128), 1)
             cv2.circle(vis, (cx, y), 4, (255,0,0), -1)
 
-        surf = pygame.surfarray.make_surface(vis.swapaxes(0,1))
-        screen.blit(surf, (0,0))
-        pygame.display.flip()
+        third = rgb_third_buf[0]
+        draw_with_pip(third, vis)
 
     else:
         # ======== Inferencia con la cámara de 90° ========
@@ -225,20 +262,27 @@ while running:
             out = model(x)
             steer, throttle = out[0].tolist()
 
-        # steer    = float(np.clip(steer,    -1.0, 1.0))
-        # throttle = float(np.clip(throttle,  0.0, 1.0))
+        steer    = float(np.clip(steer,    -1.0, 1.0))
+        throttle = float(np.clip(throttle,  0.0, 1.0))
         vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
         print("Throttle: ",throttle," Steer= ",steer)
-        surf = pygame.surfarray.make_surface(rgb_net.swapaxes(0,1))
-        screen.blit(surf, (0,0))
-        pygame.display.flip()
+ 
+
+        # PiP con la cámara en tercera persona (arriba a la derecha)
+        third = rgb_third_buf[0]
+        if third is not None:
+            draw_with_pip(third, rgb_net)
+
 
 # limpieza
 try: cam_pid.stop(); cam_pid.destroy()
 except: pass
 try: cam_net.stop(); cam_net.destroy()
 except: pass
+try: cam_third.stop(); cam_third.destroy()
+except: pass
+
 try: vehicle.destroy()
 except: pass
 pygame.quit()
