@@ -16,7 +16,7 @@ def main():
     if len(sys.argv) > 1:
         try:
             cam_index = int(sys.argv[1])
-            if cam_index < -1 or cam_index > 7:
+            if cam_index < -1 or cam_index > 8:
                 print("Índice fuera de rango. Usando 1 por defecto.")
                 cam_index = 1
         except ValueError:
@@ -24,15 +24,10 @@ def main():
 
    
     cam_locations = {
-        1: carla.Location(x=-10, y=-21.2, z=30),
-        2: carla.Location(x=8, y=-3, z=6),
-        3: carla.Location(x=17, y=-3, z=5),
-        4: carla.Location(x=16, y=-12, z=6),
-        5: carla.Location(x=4, y=-12, z=6),
-        6: carla.Location(x=4, y=-19, z=7),
-        7: carla.Location(x=1.6, y=-0.8, z=0.1),
-        0: carla.Location(x=2.6, y=0.8, z=1.4),
-        -1: carla.Location(x=3, y=-1, z=1),
+        1: carla.Location(x=1.5, y=-2.5, z=2),
+        2: carla.Location(x=17, y=-3, z=2.8),
+        3: carla.Location(x=-12, y=-16.5, z=6),
+        5: carla.Location(x=-8.9, y=-3.9, z=4),
     }
     
     
@@ -49,24 +44,14 @@ def main():
     blueprint_library = world.get_blueprint_library()
     camera_bp = blueprint_library.find('sensor.camera.rgb')
     camera_bp.set_attribute('image_size_x', '1660')
-    camera_bp.set_attribute('image_size_y', '1280')
-    camera_bp.set_attribute('fov', '100')
+    camera_bp.set_attribute('image_size_y', '1000')
+    camera_bp.set_attribute('fov', '120')
 
     cam_location = cam_locations[cam_index]
-
-    if cam_index == 3 or cam_index == 4 or cam_index == 5:
-        cam_rotation = carla.Rotation(pitch=-90, yaw=90)
+    if cam_index == 5 or cam_index == 2 or cam_index == 3:
+        cam_rotation = carla.Rotation(pitch=-90,yaw=-90)
     else:
         cam_rotation = carla.Rotation(pitch=-90)
-
-    if cam_index == 0:
-        cam_rotation = carla.Rotation(pitch=-50,yaw=-110)
-
-    if cam_index == 7:
-        cam_rotation = carla.Rotation(pitch=0)
-
-
-    cam_transform = carla.Transform(cam_location, cam_rotation)
     
     cam_transform = carla.Transform(cam_location, cam_rotation)
 
