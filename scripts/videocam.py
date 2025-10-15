@@ -68,11 +68,11 @@ def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
     if Xc <= 0.001:
         return None
 
-    # pinhole (ojo con ejes: u~Y/X, v~-Z/X)
+    # pinhole (u~Y/X, v~-Z/X)
     uvw = K @ np.array([Yc / Xc, -Zc / Xc, 1.0], dtype=np.float32)
     u, v = float(uvw[0]), float(uvw[1])
 
-    # fuera de imagen → descarta (opcional)
+    # fuera de imagen
     if u < -10 or u > img_w + 10 or v < -10 or v > img_h + 10:
         return None
 
@@ -115,7 +115,7 @@ def main():
     bp = world.get_blueprint_library()
     vehicle_bp = bp.find(VEHICLE_MODEL)
 
-    # Spawn según cámara elegida (como en tu código)
+    # Spawn según cámara elegida
     if cam_index == 1:
         spawn_point = carla.Transform(carla.Location(x=3, y=-1, z=0.5), carla.Rotation(yaw=-90))
     if cam_index == 5:
@@ -192,7 +192,7 @@ def main():
         while True:
             world.tick()
 
-            # ===== Inferencia y control del vehículo (igual que antes) =====
+            # ===== Inferencia y control del vehículo =====
             rgb_net = rgb_net_buf[0]
             if rgb_net is not None:
                 x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
@@ -232,9 +232,9 @@ def main():
                 if len(trail_px) > 0:
                     u, v = trail_px[-1]
                     if 0 <= u < frame.shape[1] and 0 <= v < frame.shape[0]:
-                        cv2.circle(frame, (u, v), 5, (0, 255, 255), -1)  # amarillo
+                        cv2.circle(frame, (u, v), 5, (255, 0, 0), -1)  # amarillo
 
-                cv2.imshow("Vista Cenital (+ estela)", frame)
+                cv2.imshow("Vista Cenital", frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
