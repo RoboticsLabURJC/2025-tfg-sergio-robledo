@@ -1,5 +1,6 @@
-import carla, time, pygame, numpy as np, cv2, torch
+import carla, time, pygame, numpy as np, cv2, torch, queue
 from torchvision import transforms
+from queue import Queue
 from utils.pilotnet import PilotNet
 from PIL import Image
 import sys
@@ -79,6 +80,7 @@ def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
     return int(round(u)), int(round(v))
 
 def main():
+    global prev_timeglobal_var
     cam_index = 1
     if len(sys.argv) > 1:
         try:
@@ -95,16 +97,18 @@ def main():
         3: carla.Location(x=-12,  y=-16.5, z=6.0),
         4: carla.Location(x=-9.5, y=13.5,  z=10.5),
         5: carla.Location(x=-8.9, y=-3.9,  z=4.0),
+        6: carla.Location(x=-1.5, y=38.9,  z=15.0),
+        7: carla.Location(x=-1.5, y=63,  z=13.0),
     }
 
     client = carla.Client('localhost', 2000)
     client.set_timeout(5.0)
     world = client.get_world()
 
-    settings = world.get_settings()
-    settings.synchronous_mode = True
-    settings.fixed_delta_seconds = FIXED_DT
-    world.apply_settings(settings)
+    # settings = world.get_settings()
+    # settings.synchronous_mode = True
+    # settings.fixed_delta_seconds = FIXED_DT
+    #world.apply_settings(settings)
 
     weather = carla.WeatherParameters(
         cloudiness=80.0, precipitation=0.0, sun_altitude_angle=90.0,
@@ -118,15 +122,21 @@ def main():
     # Spawn según cámara elegida
     if cam_index == 1:
         spawn_point = carla.Transform(carla.Location(x=3, y=-1, z=0.5), carla.Rotation(yaw=-90))
-    if cam_index == 5:
-        spawn_point = carla.Transform(carla.Location(x=-3.7, y=-4, z=0.5), carla.Rotation(yaw=-120))
     if cam_index == 3:
         spawn_point = carla.Transform(carla.Location(x=-8.5, y=-14.7, z=0.5), carla.Rotation(yaw=-15))
     if cam_index == 2:
         spawn_point = carla.Transform(carla.Location(x=17, y=-4.8, z=0.5), carla.Rotation(yaw=-10))
     if cam_index == 4:
         spawn_point = carla.Transform(carla.Location(x=-10, y=21.2, z=1), carla.Rotation(yaw=-15))
-
+    if cam_index == 5:
+        spawn_point = carla.Transform(carla.Location(x=-3.7, y=-4, z=0.5), carla.Rotation(yaw=-120))
+    if cam_index == 6:
+        #gillesvilleneuve
+        spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))      
+    if cam_index == 7:
+        #interlagosautodromojosecarlospace
+        spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
+        
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
     if not vehicle:
         print("Error al spawnear el vehículo"); raise SystemExit
@@ -156,19 +166,24 @@ def main():
     cam_net_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
     cam_net = world.spawn_actor(cam_bp_net, cam_net_tf, attach_to=vehicle)
 
-    rgb_net_buf = [None]           # FOV 90 para la red
+    rgb_net_q = Queue(maxsize=1)          # FOV 90 para la red
     camera_image = {"data": None}  # frame BGR de la cenital
 
+    def _safe_put(q: Queue, item):
+        try:
+            q.put_nowait(item)
+        except queue.Full:
+            try: q.get_nowait()
+            except queue.Empty: pass
+            q.put_nowait(item)
+
     # ======buffer de estela ======
-    trail_px = deque(maxlen=400)   # guarda últimos puntos proyectados (u,v)
+    trail_px = deque(maxlen=500)   # guarda últimos puntos proyectados (u,v)
 
     def cb_net(image: carla.Image):
-        global prev_timeglobal_var
-        timeglobal_var = image.timestamp
-        prev_timeglobal_var = timeglobal_var
         bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
         bgr  = bgra[:, :, :3]
-        rgb_net_buf[0] = bgr[:, :, ::-1]
+        _safe_put(rgb_net_q, bgr[:, :, ::-1])
 
     def on_image(image: carla.Image):
         # guardamos el frame cenital (BGR)
@@ -190,18 +205,25 @@ def main():
 
     try:
         while True:
-            world.tick()
 
+            timeglobal_var = time.time() 
+            fps_toprint = timeglobal_var - prev_timeglobal_var 
+            print(1/fps_toprint) 
+            prev_timeglobal_var = timeglobal_var
+        
             # ===== Inferencia y control del vehículo =====
-            rgb_net = rgb_net_buf[0]
-            if rgb_net is not None:
-                x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
-                with torch.no_grad():
-                    out = model(x)
-                    steer, throttle = out[0].tolist()
-                steer    = float(np.clip(steer,    -1.0, 1.0))
-                throttle = float(np.clip(throttle,  0.0, 1.0))
-                vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
+            try: last_net   = rgb_net_q.get_nowait()
+            except queue.Empty: pass
+
+            rgb_net = last_net
+
+            x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
+            with torch.no_grad():
+                out = model(x)
+                steer, throttle = out[0].tolist()
+            steer    = float(np.clip(steer,    -1.0, 1.0))
+            throttle = float(np.clip(throttle,  0.0, 1.0))
+            vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
             # ===== Obtener posición y proyectar a la imagen cenital =====
             veh_loc = vehicle.get_location()
