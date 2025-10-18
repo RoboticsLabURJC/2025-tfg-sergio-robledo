@@ -1,7 +1,8 @@
 # ------------------------------------------------
 # Inferencia automática con dos cámaras: PID (FOV 140) + NN (FOV 90)
 # ------------------------------------------------
-import carla, time, pygame, numpy as np, cv2, torch
+import carla, time, pygame, numpy as np, cv2, torch, queue
+from queue import Queue
 from torchvision import transforms
 from utils.pilotnet import PilotNet
 from PIL import Image
@@ -11,7 +12,7 @@ prev_timeglobal_var = 0.0
 last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
-
+last_net = None
 MODEL_PATH = "experiments/exp_debug_1760371287/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
@@ -42,7 +43,7 @@ world = client.get_world()
 settings = world.get_settings()
 settings.synchronous_mode = True
 settings.fixed_delta_seconds = FIXED_DT
-world.apply_settings(settings)
+#world.apply_settings(settings)
 
 
 weather = carla.WeatherParameters(
@@ -56,17 +57,12 @@ world.set_weather(weather)
 bp = world.get_blueprint_library()
 vehicle_bp = bp.find(VEHICLE_MODEL)
 # Pistas
+
 # -------------------------TRACK01-----------------------------
 # spawn_point = carla.Transform(
 #     carla.Location(x=3, y=-1, z=0.5),
-#     carla.Rotation(yaw=180-90)
+#     carla.Rotation(yaw=-90)
 # )
-
-#-------------------------TRACK---------------------------------
-spawn_point = carla.Transform(
-   carla.Location(x=-3.7, y=-4, z=0.5),
-   carla.Rotation(yaw=-120)
-)
 
 
 #-------------------------TRACK03---------------------------------
@@ -78,7 +74,7 @@ spawn_point = carla.Transform(
 #-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
 #    carla.Location(x=17, y=-4.8, z=0.5),
-#    carla.Rotation(yaw=180-10)
+#    carla.Rotation(yaw=-10)
 # )
 
 #-------------------------TRACK04---------------------------------
@@ -86,6 +82,25 @@ spawn_point = carla.Transform(
 #     carla.Location(x=-10, y=21.2, z=1),
 #     carla.Rotation(yaw=-15)
 # )
+
+#-------------------------TRACK05---------------------------------
+# spawn_point = carla.Transform(
+#    carla.Location(x=-3.7, y=-4, z=0.5),
+#    carla.Rotation(yaw=-120)
+# )
+
+#-------------------TRACK06-gillesvilleneuve----------------------
+# spawn_point = carla.Transform(
+#    carla.Location(carla.Location(x=-1.5, y=33.3, z=0.5)),
+#    carla.Rotation(yaw=0)
+# )
+
+#-------------TRACK07-interlagosautodromojosecarlospace-----------
+spawn_point = carla.Transform(
+   carla.Location(x=-1.5, y=71.5, z=0.5),
+   carla.Rotation(yaw=180)
+)
+
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
@@ -124,31 +139,30 @@ cam_tf_third = carla.Transform(
 cam_thirdperson = world.spawn_actor(cam_bp_thirdperson, cam_tf_third, attach_to=vehicle)
 
 # buffers de frames
-rgb_pid_buf = [None]  # FOV 140 para PID
-rgb_net_buf = [None]  # FOV 90 para la red
-rgb_third_buf = [None] # Tercera persona
+rgb_pid_q   = Queue(maxsize=1)    # FOV 140 para PID
+rgb_net_q   = Queue(maxsize=1)    # FOV 90 para la red
+rgb_third_q = Queue(maxsize=1)    # Tercera persona
+
+def _safe_put(q: Queue, item):
+    try:
+        q.put_nowait(item)
+    except queue.Full:
+        try: q.get_nowait()
+        except queue.Empty: pass
+        q.put_nowait(item)
 
 def cb_third(image: carla.Image):
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
-    bgr  = bgra[:, :, :3]
-    rgb_third_buf[0] = bgr[:, :, ::-1]
+    _safe_put(rgb_third_q, bgra[:, :, :3][:, :, ::-1])
 
 def cb_pid(image: carla.Image):
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
-    bgr  = bgra[:, :, :3]
-    rgb_pid_buf[0] = bgr[:, :, ::-1]
+    _safe_put(rgb_pid_q, bgra[:, :, :3][:, :, ::-1])
 
 def cb_net(image: carla.Image):
-    global prev_timeglobal_var
-
-    timeglobal_var = image.timestamp 
-    fps_toprint = timeglobal_var - prev_timeglobal_var 
-    print(1/fps_toprint) 
-    prev_timeglobal_var = timeglobal_var
 
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
-    bgr  = bgra[:, :, :3]
-    rgb_net_buf[0] = bgr[:, :, ::-1]
+    _safe_put(rgb_net_q, bgra[:, :, :3][:, :, ::-1])
 
 cam_thirdperson.listen(cb_third)
 cam_pid.listen(cb_pid)
@@ -185,7 +199,7 @@ def draw_with_pip(main_rgb, pip_rgb):
 
 
 while running:
-    world.tick()
+    #world.tick()
     sim_t = world.get_snapshot().timestamp.elapsed_seconds
 
     # cambio por tiempo (fuera de cualquier if de detección)
@@ -199,9 +213,17 @@ while running:
             if e.key == pygame.K_ESCAPE: running = False
             if e.key == pygame.K_SPACE:  pid_on = not pid_on
 
+    # Coge el último frame disponible (sin bloquear)
+    try: last_pid   = rgb_pid_q.get_nowait()
+    except queue.Empty: pass
+    try: last_net   = rgb_net_q.get_nowait()
+    except queue.Empty: pass
+    try: last_third = rgb_third_q.get_nowait()
+    except queue.Empty: pass
+
     if pid_on:
         # ======== PID con la cámara de 140° ========
-        rgb_pid = rgb_pid_buf[0]
+        rgb_pid = last_pid
         if rgb_pid is None:
             continue
 
@@ -245,22 +267,23 @@ while running:
             cv2.line(vis, (w//2, 0), (w//2, h), (128,128,128), 1)
             cv2.circle(vis, (cx, y), 4, (255,0,0), -1)
 
-        third = rgb_third_buf[0]
-        draw_with_pip(third, vis)
+        draw_with_pip(last_third, vis)
 
     else:
         # ======== Inferencia con la cámara de 90° ========
-        rgb_net = rgb_net_buf[0]
+    
+        timeglobal_var = time.time() 
+        fps_toprint = timeglobal_var - prev_timeglobal_var 
+        print(1/fps_toprint) 
+        prev_timeglobal_var = timeglobal_var
+        rgb_net = last_net
+
         if rgb_net is None:
             continue
 
-        
-        pil_img = Image.fromarray(rgb_net)     # asegúrate de que rgb es realmente RGB
-        x = infer_tf(pil_img).unsqueeze(0)
-
         with torch.no_grad():
-            out = model(x)
-            steer, throttle = out[0].tolist()
+            x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
+            steer, throttle = model(x)[0].tolist()
 
         steer    = float(np.clip(steer,    -1.0, 1.0))
         throttle = float(np.clip(throttle,  0.0, 1.0))
@@ -270,9 +293,7 @@ while running:
  
 
         # PiP con la cámara en tercera persona (arriba a la derecha)
-        third = rgb_third_buf[0]
-        if third is not None:
-            draw_with_pip(third, rgb_net)
+        draw_with_pip(last_third, rgb_net)
 
 
 # limpieza
