@@ -94,7 +94,7 @@ def main():
     if len(sys.argv) > 1:
         try:
             cam_index = int(sys.argv[1])
-            if cam_index < -1 or cam_index > 8:
+            if cam_index < -1 or cam_index > 11:
                 print("Índice fuera de rango. Usando 1 por defecto.")
                 cam_index = 1
         except ValueError:
@@ -108,6 +108,10 @@ def main():
         5: carla.Location(x=-8.9, y=-3.9,  z=4.0),
         6: carla.Location(x=-1.5, y=38.9,  z=15.0),
         7: carla.Location(x=-1.5, y=63,  z=13.0),
+        8: carla.Location(x=-65, y=38.9,  z=30.0),
+        9: carla.Location(x=-67, y=120.9,  z=30.0),
+        10: carla.Location(x=-67, y=227,  z=33.0),
+        11: carla.Location(x=-67, y=317,  z=30.0),
     }
 
     client = carla.Client('localhost', 2000)
@@ -145,7 +149,20 @@ def main():
     if cam_index == 7:
         #interlagosautodromojosecarlospace
         spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
+    if cam_index == 8:
+        #nurburgring
+        spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=150))
+    if cam_index == 9:
+        #spafrancorchamps
+        spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=55))
+    if cam_index == 10:
+        #silverstone
+        spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=180-25))
+    if cam_index == 11:
+        #lagoseco
+        spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=-25))
     
+
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
     if not vehicle:
         print("Error al spawnear el vehículo"); raise SystemExit
@@ -164,7 +181,7 @@ def main():
 
     cam_location = cam_locations[cam_index]
     # Yaw de la cámara cenital (lo usaremos para rotar el plano)
-    if cam_index == 1:
+    if cam_index == 1 or cam_index == 9 or cam_index == 10:
         cam_rotation = carla.Rotation(pitch=-90)          # yaw = 0 por defecto
     else:
         cam_rotation = carla.Rotation(pitch=-90, yaw=-90) # yaw = -90
