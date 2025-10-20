@@ -172,7 +172,7 @@ def main():
 
     cam_location = cam_locations[cam_index]
     # Yaw de la cámara cenital (lo usaremos para rotar el plano)
-    if cam_index == 1:
+    if cam_index == 1 or cam_index == 9 or cam_index == 10:
         cam_rotation = carla.Rotation(pitch=-90)          # yaw = 0 por defecto
     else:
         cam_rotation = carla.Rotation(pitch=-90, yaw=-90) # yaw = -90
