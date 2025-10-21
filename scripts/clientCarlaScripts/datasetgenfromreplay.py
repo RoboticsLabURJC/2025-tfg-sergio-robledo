@@ -4,11 +4,21 @@ import carla, pygame
 import numpy as np
 import cv2
 from datetime import datetime
+import queue
+from queue import Queue
 
-LOG_FILE = "/tmp/Track04C.log"
+
+LOG_FILE = "/tmp/Track02C.log"
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
+prev_timeglobal_var = 0.0
+
+# estado para velocidad por diferencias---
+prev_pos = None          # np.array([x,y,z]) del paso anterior
+prev_t   = None
+ema_v    = None          # filtro EMA para suavizar (opcional)
+ALPHA  = 0.2           # 0..1, más alto = menos suave
 
 # === Dataset paths ===
 currtime   = str(int(time.time() * 1000))
@@ -35,9 +45,7 @@ def get_log_duration(client, path: str) -> float:
 def wait_for_vehicle(world, filt="vehicle.finaldeepracer.aws_deepracer", timeout_s=10.0):
     t0 = time.time()
     while time.time() - t0 < timeout_s:
-        snap = world.wait_for_tick(2.0)
-        if snap is None:
-            continue
+        world.tick()
         actors = world.get_actors().filter(filt)
         if actors:
             return actors[0]
@@ -60,6 +68,8 @@ def guardar_dato(timestamp, bgr, mask_rgb, throttle, steer, brake, speed, headin
                                 throttle, steer, brake, speed, heading, _estado_from_steer(steer)])
 
 def main():
+    global prev_timeglobal_var, prev_pos, ema_v, prev_t
+    
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("CARLA Replay")
@@ -100,76 +110,114 @@ def main():
     cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
     cam = world.spawn_actor(bp, cam_tf, attach_to=ego)
 
-    # buffers compartidos
-    last_rgb = [None]
-    last_bgr = [None]
-    last_wh  = [None]
+    
+    frame_q = Queue(maxsize=1)   # guardar (rgb, bgr, (w, h))
+
+    def _safe_put(q: Queue, item):
+        try:
+            q.put_nowait(item)
+        except queue.Full:
+            try:
+                q.get_nowait()   # tira el anterior
+            except queue.Empty:
+                pass
+            q.put_nowait(item)
+
 
     def on_image(image: carla.Image):
-        # BGRA -> BGR y RGB
         bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
         bgr  = bgra[:, :, :3].copy()
         rgb  = bgr[:, :, ::-1]
-        last_bgr[0] = bgr
-        last_rgb[0] = rgb
-        last_wh[0]  = (image.width, image.height)
+        _safe_put(frame_q, (rgb, bgr, (image.width, image.height)))
+
 
     cam.listen(on_image)
 
     start_sim = world.get_snapshot().timestamp.elapsed_seconds
     duration  = get_log_duration(client, LOG_FILE)
     end_sim   = start_sim + duration
-    start_save_sim_t = start_sim + 7.0   # guardar a partir de +5 s
+    start_save_sim_t = start_sim + 7   # guardar a partir de +7 s
 
     try:
         while True:
+
             world.tick()
+
             snap = world.get_snapshot()
             sim_time = snap.timestamp.elapsed_seconds
 
+            # timeglobal_var = time.time()
+            # fps_toprint = timeglobal_var - prev_timeglobal_var
+            # print(1/fps_toprint)
+            # prev_timeglobal_var = timeglobal_var
+
+            try:
+                rgb, bgr, (w, h) = frame_q.get_nowait()
+            except queue.Empty:
+                prev_t = sim_time
+            
+                for e in pygame.event.get():
+                    if e.type == pygame.QUIT:
+                        raise KeyboardInterrupt
+                continue
+    
+
             # Dibujar si hay frame
-            if last_rgb[0] is not None:
-                surface = pygame.surfarray.make_surface(last_rgb[0].swapaxes(0, 1))
-                screen.blit(surface, (0, 0))
-                pygame.display.flip()
+        
+            surface = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+            screen.blit(surface, (0, 0))
+            pygame.display.flip()
 
-                # === Segmentación muy simple (opcional) ===
-                rgb = last_rgb[0]
-                bgr = last_bgr[0]
-                w, h = last_wh[0]
+            hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+            mask_y = cv2.inRange(hsv, np.array([18, 50, 150]), np.array([40, 255, 255]))
+            mask_w = cv2.inRange(hsv, np.array([0, 0, 200]),  np.array([180, 30, 255]))
+            mask_c = np.zeros(mask_w.shape, np.uint8); mask_c[mask_w>0]=1; mask_c[mask_y>0]=2
+            mask_rgb = np.zeros_like(rgb); mask_rgb[mask_c==1]=[255,255,255]; mask_rgb[mask_c==2]=[255,255,0]
 
-                hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
-                mask_y = cv2.inRange(hsv, np.array([18, 50, 150]), np.array([40, 255, 255]))
-                mask_w = cv2.inRange(hsv, np.array([0, 0, 200]),  np.array([180, 30, 255]))
-                mask_c = np.zeros(mask_w.shape, np.uint8); mask_c[mask_w>0]=1; mask_c[mask_y>0]=2
-                mask_rgb = np.zeros_like(rgb); mask_rgb[mask_c==1]=[255,255,255]; mask_rgb[mask_c==2]=[255,255,0]
+            # Heading
+            y = int(0.53 * h)
+            row = mask_c[y]; white_idx = np.where(row==1)[0]
+            cx = None
+            if len(white_idx) > 10:
+                cx = (white_idx[0] + white_idx[-1]) // 2
+            img_cx  = w//2
+            err_px  = (img_cx - cx) if cx is not None else 0
+            dy_px   = h - y
+            heading = float(np.degrees(np.arctan2(err_px, dy_px)))
 
-                # Heading
-                y = int(0.53 * h)
-                row = mask_c[y]; white_idx = np.where(row==1)[0]
-                cx = None
-                if len(white_idx) > 10:
-                    cx = (white_idx[0] + white_idx[-1]) // 2
-                img_cx  = w//2
-                err_px  = (img_cx - cx) if cx is not None else 0
-                dy_px   = h - y
-                heading = float(np.degrees(np.arctan2(err_px, dy_px)))
+            # Telemetría del ego
+            t  = sim_time
+            dt = snap.timestamp.delta_seconds or (t - prev_t if prev_t is not None else None)
 
-                # Telemetría del ego
-                vel = ego.get_velocity()
-                speed = float(np.linalg.norm([vel.x, vel.y, vel.z]))
-                ctrl = ego.get_control()
-                throttle = float(ctrl.throttle)
-                steer    = max(-1.0, min(1.0, float(ctrl.steer)))  # clamp por seguridad
-                brake    = float(ctrl.brake)
+            loc = ego.get_location()
+            cur_pos = np.array([loc.x, loc.y, loc.z], dtype=float)
 
-                # Guardar desde t >= 10 s
-                if sim_time >= start_save_sim_t:
-                    print("Guardando...")
-                    ts = int(datetime.utcnow().timestamp()*1000)
-                    guardar_dato(ts, bgr, mask_rgb, throttle, steer, brake, speed, heading)
-                else:
-                    print("Aun no guarda")
+            if prev_pos is not None and dt and dt > 0:
+                # distancia (m) / tiempo (s) → velocidad en m/s
+                speed = float(np.linalg.norm(cur_pos - prev_pos) / dt)
+
+                # suavizado EMA opcional
+                ema_v = speed if ema_v is None else (1-ALPHA)*ema_v + ALPHA*speed
+                speed = ema_v
+
+            else:
+                speed = 0.0
+            
+            prev_pos,prev_t = cur_pos, t
+        
+            
+            ctrl = ego.get_control()
+            throttle = float(ctrl.throttle)
+            steer    = max(-1.0, min(1.0, float(ctrl.steer)))  # clamp por seguridad
+            brake    = float(ctrl.brake)
+
+            # Guardar desde t >= 10 s
+            if sim_time >= start_save_sim_t:
+                print("Guardando...")
+                ts = int(datetime.utcnow().timestamp()*1000)
+                guardar_dato(ts, bgr, mask_rgb, throttle, steer, brake, speed, heading)
+            else:
+                print("Aun no guarda")
 
             # salir al final del log
             if sim_time >= end_sim:
@@ -181,7 +229,6 @@ def main():
                 if e.type == pygame.QUIT:
                     raise KeyboardInterrupt
 
-            #clock.tick(FPS)
 
     except KeyboardInterrupt:
         print("Interrumpido por el usuario")
