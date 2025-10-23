@@ -8,11 +8,10 @@ import matplotlib.pyplot as plt
 from collections import deque
 import random
 
-# === Usa el mismo receptor que en tu teleop ===
 from ControllerProxy import ControllerReceiver
 
 
-log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/Track04CC.log"
+log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/Track011CC.log"
 
 
 # ===================== ARGUMENTOS =====================
@@ -52,7 +51,6 @@ def main():
     client = carla.Client(args.carla_host, args.carla_port)
     client.set_timeout(10.0)
 
-    # Cargar mapa si se pide
     if args.map:
         try:
             client.load_world(args.map)
@@ -60,8 +58,6 @@ def main():
             print(f"[WARN] No se pudo cargar el mapa {args.map}: {e}")
 
     world = client.get_world()
-
-    # (Dejamos modo asíncrono por simplicidad y fluidez)
     weather = carla.WeatherParameters(
         cloudiness=80.0, precipitation=0.0, sun_altitude_angle=90.0,
         fog_density=0.0, wetness=0.0
@@ -73,38 +69,33 @@ def main():
 
     # ELECCION DE PISTA
 
-    # -------------------------TRACK1-----------------------------
-    # spawn_point = carla.Transform(
-    #    carla.Location(x=3, y=-1, z=0.5),
-    #    carla.Rotation(yaw=-90)
-    # )
+    #spawn_point = carla.Transform(carla.Location(x=3, y=-1, z=0.5), carla.Rotation(yaw=-90))
 
-    #-------------------------TRACK---------------------------------
-    # spawn_point = carla.Transform(
-    #     carla.Location(x=-3.7, y=-4, z=0.5),
-    #     carla.Rotation(yaw=-120)
-    # )
+    #spawn_point = carla.Transform(carla.Location(x=-8.5, y=-14.7, z=0.5), carla.Rotation(yaw=-15))
 
+    #spawn_point = carla.Transform(carla.Location(x=17, y=-4.8, z=0.5), carla.Rotation(yaw=-10))
 
-    #-------------------------TRACK3---------------------------------
-    # spawn_point = carla.Transform(
-    #     carla.Location(x=-7, y=-15, z=0.5),
-    #     carla.Rotation(yaw=-15)
-    # )
+    #spawn_point = carla.Transform(carla.Location(x=-10, y=21.2, z=1), carla.Rotation(yaw=-15))
+    
+    #spawn_point = carla.Transform(carla.Location(x=-3.7, y=-4, z=0.5), carla.Rotation(yaw=-120))
+    
+    #gillesvilleneuve
+    #spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
 
-    #-------------------------TRACK2---------------------------------
-    # spawn_point = carla.Transform(
-    #      carla.Location(x=17, y=-4.2, z=0.5),
-    #      carla.Rotation(yaw=-15)
-    # )
-
-    #-------------------------TRACK4-------------------------------
-    spawn_point = carla.Transform(
-    carla.Location(x=-9.9, y=21.2, z=0.5),
-    carla.Rotation(yaw=-20)
-    )
-
-
+    #interlagosautodromojosecarlospace
+    #spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
+    
+    #nurburgring
+    #spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=150))
+    
+    #spafrancorchamps
+    #spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=-90))
+    
+    #silverstone
+    #spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=180-25))
+    
+    #lagoseco
+    spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
     if not vehicle:
@@ -125,7 +116,6 @@ def main():
     camera_surface = None
     def camera_callback(image):
         nonlocal camera_surface
-        # raw_data = BGRA -> cogemos BGR (3 canales) -> convertimos a RGB para pygame
         arr = np.frombuffer(image.raw_data, dtype=np.uint8)
         arr = np.reshape(arr, (image.height, image.width, 4))[:, :, :3]
         arr = arr[:, :, ::-1]  # BGR -> RGB
@@ -150,7 +140,7 @@ def main():
     print(f"ControllerReceiver escuchando en puerto {args.controller_port}")
 
 
-    DURACION_S = 70
+    DURACION_S = 140
     t0 = time.time() 
     running = True
 
@@ -174,7 +164,7 @@ def main():
                 running = False
                 break
 
-        # Aplicar control más reciente del volante
+        # Aplicar control
         vehicle.apply_control(control)
 
         # Mostrar cámara

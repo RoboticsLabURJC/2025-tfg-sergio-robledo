@@ -45,7 +45,6 @@ if __name__ == "__main__":
     args = parse_args()
 
     print("TRAIN dirs:", args.data_dir)
-    #print("VAL dirs  :", args.val_dir)
     print("TEST dirs :", args.test_dir)
 
     # Avisos de solape

@@ -7,7 +7,7 @@ import sys
 from collections import deque
 import math
 
-MODEL_PATH = "experiments/exp_debug_1760789882/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1761123196/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -157,7 +157,7 @@ def main():
         spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=55))
     if cam_index == 10:
         #silverstone
-        spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=180-25))
+        spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=-25))
     if cam_index == 11:
         #lagoseco
         spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=-25))

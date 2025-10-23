@@ -45,15 +45,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     print("TRAIN dirs:", args.data_dir)
-    #print("VAL dirs  :", args.val_dir)
     print("TEST dirs :", args.test_dir)
-
-    # Avisos de solape
-    # if args.test_dir:
-    #     print("Overlap TRAIN-TEST:", set(args.data_dir).intersection(set(args.test_dir)))
-    # print("Overlap TRAIN-VAL :", set(args.data_dir).intersection(set(args.val_dir)))
-    # if args.test_dir:
-    #     print("Overlap VAL-TEST :", set(args.test_dir).intersection(set(args.val_dir)))
 
     # Convierte args en dict y guarda
     exp_setup = vars(args)
@@ -237,7 +229,7 @@ if __name__ == "__main__":
     if args.test_dir is not None:
         overlap = set(test_dirs).intersection(set(args.data_dir))
         if overlap:
-            print(f"[WARN] Estas carpetas están en train y test a la vez (evítalo): {sorted(overlap)}")
+            print(f"[WARN] Estas carpetas están en train y test a la vez: {sorted(overlap)}")
 
     test_set = PilotNetDataset(
         test_dirs,

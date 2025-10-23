@@ -3,10 +3,7 @@ import os
 import glob
 from PIL import Image
 
-# =========================
-# CONFIGURACIÓN (edita aquí)
-# =========================
-ROOT = "../datasets/test"                     # Raíz que contiene Deepracer_BaseMap_*/
+ROOT = "../datasets/test"              # Raíz que contiene Deepracer_BaseMap_*/
 INPLACE = False                        # True: sobrescribe en rgb/ ; False: guarda en rgb_cropped/
 DRY_RUN = False                        # True: no guarda, solo muestra lo que haría
 EXTS = ["*.png", "*.jpg", "*.jpeg"]    # Extensiones a procesar
@@ -76,7 +73,7 @@ def main():
             print(f"[AVISO] No hay imágenes en {rgb_dir}")
             continue
 
-        print(f"Procesando {len(img_paths)} imágenes en {rgb_dir} -> {'INPLACE' if INPLACE else out_dir}")
+        print(f"Procesando {len(img_paths)} imágenes en {rgb_dir} {'INPLACE' if INPLACE else out_dir}")
 
         for ip in img_paths:
             try:

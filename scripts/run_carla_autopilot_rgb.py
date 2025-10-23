@@ -202,11 +202,11 @@ while running:
     #world.tick()
     sim_t = world.get_snapshot().timestamp.elapsed_seconds
 
-    # cambio por tiempo (fuera de cualquier if de detección)
+    # cambio por tiempo
     if pid_on and (sim_t - start_sim) >= WARMUP_SEC:
         pid_on = False
 
-    # eventos (ESC para salir, SPACE para alternar manualmente)
+    # ESC para salir, SPACE para alternar manualmente
     for e in pygame.event.get():
         if e.type == pygame.QUIT: running = False
         if e.type == pygame.KEYDOWN:

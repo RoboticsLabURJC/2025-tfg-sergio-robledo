@@ -10,7 +10,7 @@ from PIL import Image
 
 # estado para velocidad por diferencias 
 prev_pos = None          # np.array([x,y,z]) del paso anterior
-ema_v    = None          # filtro EMA para suavizar (opcional)
+ema_v    = None          # filtro EMA para suavizar
 ALPHA_V  = 0.2           # 0..1, más alto = menos suave
 
 
@@ -20,7 +20,7 @@ last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 
-MODEL_PATH = "experiments/exp_debug_1760789882/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1760960171/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -96,16 +96,16 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------------TRACK06-gillesvilleneuve----------------------
-spawn_point = carla.Transform(
-   carla.Location(carla.Location(x=-1.5, y=33.3, z=0.5)),
-   carla.Rotation(yaw=180)
-)
+# spawn_point = carla.Transform(
+#    carla.Location(carla.Location(x=-1.5, y=33.3, z=0.5)),
+#    carla.Rotation(yaw=180)
+# )
 
 #-------------TRACK07-interlagosautodromojosecarlospace-----------
-# spawn_point = carla.Transform(
-#    carla.Location(x=-1.5, y=71.5, z=0.5),
-#    carla.Rotation(yaw=0)
-# )
+spawn_point = carla.Transform(
+   carla.Location(x=-1.5, y=71.5, z=0.5),
+   carla.Rotation(yaw=0)
+)
 
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -208,11 +208,11 @@ while running:
     #world.tick()
     sim_t = world.get_snapshot().timestamp.elapsed_seconds
 
-    # cambio por tiempo (fuera de cualquier if de detección)
+    # cambio por tiempo 
     if pid_on and (sim_t - start_sim) >= WARMUP_SEC:
         pid_on = False
 
-    # eventos (ESC para salir, SPACE para alternar manualmente)
+    # ESC para salir, SPACE para alternar manualmente
     for e in pygame.event.get():
         if e.type == pygame.QUIT: running = False
         if e.type == pygame.KEYDOWN:
@@ -266,7 +266,7 @@ while running:
 
         vehicle.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer)))
 
-        # overlay sencillo para ver la línea
+        # overlay
         vis = rgb_pid.copy()
         if cx is not None:
             cv2.line(vis, (0, y), (w-1, y), (100,100,100), 1)

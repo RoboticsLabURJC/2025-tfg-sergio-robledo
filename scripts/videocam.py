@@ -7,7 +7,7 @@ import sys
 from collections import deque
 import math
 
-MODEL_PATH = "experiments/exp_debug_1760371287/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1761147304/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -65,7 +65,7 @@ def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
     Pc = T_cw @ Pw
     Xc, Yc, Zc, _ = Pc
 
-    # detrás de la cámara → no proyecta
+    # detrás de la cámara, no proyecta
     if Xc <= 0.001:
         return None
 
@@ -171,7 +171,7 @@ def main():
     cam_bp_net.set_attribute('sensor_tick', '0.0')
 
     cam_location = cam_locations[cam_index]
-    # Yaw de la cámara cenital (lo usaremos para rotar el plano)
+    # Yaw de la cámara cenital para rotar el plano
     if cam_index == 1 or cam_index == 9 or cam_index == 10:
         cam_rotation = carla.Rotation(pitch=-90)          # yaw = 0 por defecto
     else:
@@ -203,7 +203,7 @@ def main():
         _safe_put(rgb_net_q, bgr[:, :, ::-1])
 
     def on_image(image: carla.Image):
-        # guardamos el frame cenital (BGR)
+        # frame cenital (BGR)
         array = np.frombuffer(image.raw_data, dtype=np.uint8).reshape((image.height, image.width, 4))[:, :, :3]
         camera_image["data"] = array
 

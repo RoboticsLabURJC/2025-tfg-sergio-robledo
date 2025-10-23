@@ -3,7 +3,7 @@
 # Carpeta base donde están los datos
 DATASET_BASE="./datasets"
 TEST_BASE="./datasets/test"
-VALID_BASE="./datasets/validation"
+#VALID_BASE="./datasets/validation"
 
 # Script de entrenamiento
 TRAIN_SCRIPT="train_final.py"
@@ -21,7 +21,7 @@ for dir in "$DATASET_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --test_dir (opcional)
+# ---- Construir lista de --test_dir 
 TEST_DIRS=()
 echo "Buscando datasets de TEST..."
 for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
@@ -31,30 +31,15 @@ for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --val_dir (OBLIGATORIO)
-VALID_DIRS=()
-echo "Buscando datasets de VALIDACIÓN..."
-for dir in "$VALID_BASE"/Deepracer_BaseMap_*; do
-  if [ -d "$dir" ]; then
-    echo "Val: $dir"
-    VALID_DIRS+=(--val_dir "$dir")
-  fi
-done
-
 # Comprobaciones mínimas
 if [ ${#DATA_DIRS[@]} -eq 0 ]; then
   echo "No se encontraron carpetas de TRAIN en $DATASET_BASE/Deepracer_BaseMap_*"
   exit 1
 fi
 
-if [ ${#VALID_DIRS[@]} -eq 0 ]; then
-  echo "No se encontraron carpetas de VALIDACIÓN en $VALID_BASE/Deepracer_BaseMap_* (requerido)."
-  exit 1
-fi
-
 echo ""
 echo "Iniciando entrenamiento con:"
-echo "   Epochs     : 80"
+echo "   Epochs     : 100"
 echo "   Batch size : 128"
 echo "   LR         : 3e-4"
 echo "   Experimento: $EXPERIMENT_NAME"
@@ -64,8 +49,7 @@ echo ""
 python "$TRAIN_SCRIPT" \
   "${DATA_DIRS[@]}" \
   "${TEST_DIRS[@]}" \
-  "${VALID_DIRS[@]}" \
-  --num_epochs 80 \
+  --num_epochs 100 \
   --batch_size 128 \
   --lr 3e-4 \
   --base_dir "$EXPERIMENT_NAME" \

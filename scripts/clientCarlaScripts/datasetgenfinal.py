@@ -1,5 +1,5 @@
 #------------------------------------------------
-#Codigo definitivo para generar el dataset necesario para 
+#Codigo para generar el dataset necesario para 
 # el futuro entrenamiento del modelo, se obtiene por frame
 # la imagen rgv, la mascara, throttle, velocidad, steer, heading
 #------------------------------------------------
@@ -31,6 +31,7 @@ Kp_throttle = 0.02
 # Mutex
 image_queue = deque(maxlen=1)
 queue_lock = Lock()
+
 # Tiempo para decidir si mantener la imagen o dejarla como obsoleta
 MAX_IMAGE_AGE_MS = 150
 
@@ -91,10 +92,10 @@ vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 # ELECCION DE PISTA
 
 # -------------------------TRACK1-----------------------------
-# spawn_point = carla.Transform(
-#    carla.Location(x=3, y=-1, z=0.5),
-#    carla.Rotation(yaw=-90)
-# )
+spawn_point = carla.Transform(
+    carla.Location(x=3, y=-1.3, z=0.5),
+    carla.Rotation(yaw=-90)
+)
 
 #-------------------------TRACK---------------------------------
 # spawn_point = carla.Transform(
@@ -116,10 +117,10 @@ vehicle_bp = blueprint_library.find(VEHICLE_MODEL)
 # )
 
 #-------------------------TRACK4-------------------------------
-spawn_point = carla.Transform(
-   carla.Location(x=-9.9, y=21.2, z=0.5),
-   carla.Rotation(yaw=-20 + 180)
-)
+# spawn_point = carla.Transform(
+#    carla.Location(x=-9.9, y=21.2, z=0.5),
+#    carla.Rotation(yaw=-20 + 180)
+# )
 
 
 

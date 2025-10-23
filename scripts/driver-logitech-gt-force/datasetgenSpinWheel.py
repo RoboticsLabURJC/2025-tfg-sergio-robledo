@@ -11,9 +11,7 @@ import csv
 from datetime import datetime
 import argparse
 import random
-
-# === Teleoperación ===
-from ControllerProxy import ControllerReceiver  # usa el mismo que en tu teleop
+from ControllerProxy import ControllerReceiver
 
 # ===================== Argumentos =====================
 def parse_args():
@@ -27,7 +25,7 @@ def parse_args():
     p.add_argument("--start-delay", type=float, default=15.0, help="Segundos antes de empezar a guardar")
     p.add_argument("--max-duration", type=float, default=120.0, help="Segundos totales de ejecución (auto-stop)")
     p.add_argument("--save-root", type=str, default="dataset", help="Carpeta raíz donde crear el dataset")
-    p.add_argument("--map", type=str, default=None, help="(Opcional) cargar mapa, p.ej. Town04")
+    p.add_argument("--map", type=str, default=None, help="cargar mapa, p.ej. Town04")
     return p.parse_args()
 
 # ===================== Estado global control =====================
@@ -35,7 +33,7 @@ current_steer = 0.0
 current_throttle = 0.0
 current_brake = 0.0
 
-# Colas y locks (mantiene la imagen más fresca)
+# Colas y locks
 image_queue = deque(maxlen=1)
 queue_lock = Lock()
 MAX_IMAGE_AGE_MS = 150
@@ -65,7 +63,6 @@ def main():
     if not os.path.exists(CSV_PATH):
         with open(CSV_PATH, mode='w', newline='') as f:
             writer = csv.writer(f)
-            # añadimos 'estado' como en tus datasets recientes
             writer.writerow(["rgb_path", "mask_path", "timestamp",
                              "throttle", "steer", "brake", "speed", "heading", "estado"])
 
@@ -86,13 +83,12 @@ def main():
 
     world = client.get_world()
 
-    # Sincronía
     settings = world.get_settings()
     settings.synchronous_mode = True
     settings.fixed_delta_seconds = 1.0 / args.fps
     world.apply_settings(settings)
 
-    # Tiempo/Clima
+    # Tiempo
     weather = carla.WeatherParameters(
         cloudiness=80.0, precipitation=0.0, sun_altitude_angle=90.0,
         fog_density=0.0, wetness=0.0
@@ -103,36 +99,51 @@ def main():
 
     # Vehículo
     vehicle_bp = bp_lib.find('vehicle.finaldeepracer.aws_deepracer')
+    
+    
+    # Pistas
     # -------------------------TRACK01-----------------------------
     # spawn_point = carla.Transform(
     #     carla.Location(x=3, y=-1, z=0.5),
     #     carla.Rotation(yaw=-90)
     # )
 
-    #-------------------------TRACK02---------------------------------
-    # spawn_point = carla.Transform(
-    #     carla.Location(x=-3.7, y=-4, z=0.5),
-    #     carla.Rotation(yaw=-120)
-    # )
-
 
     #-------------------------TRACK03---------------------------------
     # spawn_point = carla.Transform(
-    #    carla.Location(x=-7, y=-15, z=0.5),
-    #    carla.Rotation(yaw=-15)
+    #     carla.Location(x=-8, y=-15, z=0.5),
+    #     carla.Rotation(yaw=-15)
+    # )
+
+    #-------------------------TRACK02---------------------------------
+    # spawn_point = carla.Transform(
+    #    carla.Location(x=17, y=-4.8, z=0.5),
+    #    carla.Rotation(yaw=-10)
     # )
 
     #-------------------------TRACK04---------------------------------
     # spawn_point = carla.Transform(
-    #     carla.Location(x=17, y=-4.2, z=0.5),
-    #     carla.Rotation(yaw=-15 + 180)
+    #     carla.Location(x=-10, y=21.2, z=1),
+    #     carla.Rotation(yaw=-15)
     # )
 
-    #-------------------------BIGTRACK---------------------------------
+    #-------------------------TRACK05---------------------------------
+    # spawn_point = carla.Transform(
+    #    carla.Location(x=-3.7, y=-4, z=0.5),
+    #    carla.Rotation(yaw=-120)
+    # )
+
+    #-------------------TRACK06-gillesvilleneuve----------------------
     spawn_point = carla.Transform(
-         carla.Location(x=-10, y=21.2, z=1),
-         carla.Rotation(yaw=-17)
+    carla.Location(carla.Location(x=-1.5, y=33.3, z=0.5)),
+    carla.Rotation(yaw=180)
     )
+
+    #-------------TRACK07-interlagosautodromojosecarlospace-----------
+    # spawn_point = carla.Transform(
+    #    carla.Location(x=-1.5, y=71.5, z=0.5),
+    #    carla.Rotation(yaw=0)
+    # )
 
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -141,7 +152,7 @@ def main():
         return
     print(f"Vehículo spawneado en {spawn_point.location}")
 
-    # Cámara RGB frontal (igual que tu pipeline original)
+    # Cámara RGB frontal
     cam_bp = bp_lib.find('sensor.camera.rgb')
     cam_bp.set_attribute('image_size_x', str(WIDTH))
     cam_bp.set_attribute('image_size_y', str(HEIGHT))
@@ -149,9 +160,8 @@ def main():
     cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
     camera_front = world.spawn_actor(cam_bp, cam_tf, attach_to=vehicle)
 
-    # ===================== Callback cámara (MISMA CONVERSIÓN) =====================
+    # ===================== Callback cámara =====================
     def camera_callback(image):
-        # raw_data = BGRA -> nos quedamos con BGR (primeras 3), y más tarde creamos RGB
         arr = np.frombuffer(image.raw_data, dtype=np.uint8)
         arr = np.reshape(arr, (image.height, image.width, 4))[:, :, :3]  # BGR
         with queue_lock:
@@ -167,7 +177,7 @@ def main():
         # 0=steer, 1=throttle, 2=brake
         nonlocal control
         if code == 0:
-            control.steer = - float(value)  # invertido como pediste
+            control.steer = - float(value)
         elif code == 1:
             control.throttle = float(value)
         elif code == 2:
@@ -184,9 +194,9 @@ def main():
         rgb_path_rel = os.path.join("/rgb", rgb_name)
         mask_path_rel = os.path.join("/masks", mask_name)
 
-        # Guarda BGR tal cual (como en tu recogida)
+        # Guarda BGR
         cv2.imwrite(os.path.join(RGB_DIR, rgb_name), bgr_img)
-        # Máscara (RGB->BGR para disco)
+        # Máscara
         cv2.imwrite(os.path.join(MASK_DIR, mask_name), cv2.cvtColor(mask_rgb_img, cv2.COLOR_RGB2BGR))
 
         estado = _estado_from_steer(float(steer))
@@ -196,10 +206,10 @@ def main():
             writer.writerow([rgb_path_rel, mask_path_rel, timestamp,
                              accel, steer, brake, speed, heading, estado])
 
-    # ======== Control de tiempos (arranque diferido y auto-stop) ========
+    # ======== Control de tiempos ========
     run_start = time.time()
-    start_recording_time = run_start + args.start_delay   # p.ej. 5 s
-    end_time = run_start + args.max_duration              # p.ej. 35 s
+    start_recording_time = run_start + args.start_delay  
+    end_time = run_start + args.max_duration             
     started_msg = False
 
     # Pre-roll y arranque
@@ -208,7 +218,7 @@ def main():
 
     running = True
     clock = pygame.time.Clock()
-    print(f"ó Ejecutando& se empezará a guardar tras {args.start_delay:.1f}s y se parará a los {args.max_duration:.1f}s.")
+    print(f"Se empezará a guardar tras {args.start_delay:.1f}s y se parará a los {args.max_duration:.1f}s.")
 
     try:
         while running:
@@ -237,10 +247,10 @@ def main():
                     bgr = None
 
             if bgr is not None:
-                # === Construcción de RGB y máscara EXACTA a tu pipeline ===
+                # === Construcción de RGB y máscara===
                 rgb = bgr[:, :, ::-1].copy()
 
-                # Mostrar en pygame (opcional)
+                # Mostrar en pygame
                 surf = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
                 screen.blit(surf, (0, 0))
                 pygame.display.flip()
@@ -263,7 +273,7 @@ def main():
                 mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
                 mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo
 
-                # === Heading (mismo cálculo) ===
+                # === Heading ===
                 y = int(0.53 * HEIGHT)
                 row = mask_class[y]
                 white_indices = np.where(row == 1)[0]
@@ -305,7 +315,6 @@ def main():
             clock.tick(args.fps)
 
     finally:
-        # Limpieza
         try:
             camera_front.stop()
         except Exception:

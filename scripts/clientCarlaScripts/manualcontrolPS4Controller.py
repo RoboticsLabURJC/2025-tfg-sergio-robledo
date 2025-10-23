@@ -2,8 +2,8 @@
 # Codigo para control manual del Deepracer directamente en Carla, en local. Pero con un mando Dualshock
 # en remoto, se lanza con el codigo client de PS4, joystick_client.
 # Se utiliza simplemente para mover el coche por el mundo y observar sus fisicas y texturas
+# Solo permanece abierto una duracion de DURACION_S y se guarda el log del recorrido realizado
 #------------------------------------------------
-
 
 import carla
 import time
@@ -13,16 +13,19 @@ import socket
 import matplotlib.pyplot as plt
 from collections import deque
 
-plt.ion()
-fig, ax = plt.subplots()
-history_len = 100
+log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/TestTrack.log"
 
-steer_history = deque([0]*history_len, maxlen=history_len)
-throttle_history = deque([0]*history_len, maxlen=history_len)
-line1, = ax.plot(steer_history, label="Steer", color="blue")
-line2, = ax.plot(throttle_history, label="Throttle", color="green")
-ax.set_ylim(-1.1, 1.1)
-ax.legend()
+
+# plt.ion()
+# fig, ax = plt.subplots()
+# history_len = 100
+
+# steer_history = deque([0]*history_len, maxlen=history_len)
+# throttle_history = deque([0]*history_len, maxlen=history_len)
+# line1, = ax.plot(steer_history, label="Steer", color="blue")
+# line2, = ax.plot(throttle_history, label="Throttle", color="green")
+# ax.set_ylim(-1.1, 1.1)
+# ax.legend()
 
 
 # Socket config
@@ -37,7 +40,7 @@ conn, addr = s.accept()
 print(f"Connected from {addr}")
 
 # Carla config
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1300, 1000
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("DeepRacer - Remote control")
@@ -58,16 +61,47 @@ world.set_weather(weather)
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find('vehicle.finaldeepracer.aws_deepracer')
 
+# Pistas
+# -------------------------TRACK01-----------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=3, y=-1, z=0.5),
+#     carla.Rotation(yaw=-90)
+# )
+
+#-------------------------TRACK---------------------------------
+# spawn_point = carla.Transform(
+#    carla.Location(x=-3.7, y=-4, z=0.5),
+#    carla.Rotation(yaw=-120)
+# )
+
+
+#-------------------------TRACK03---------------------------------
+# spawn_point = carla.Transform(
+#     carla.Location(x=-7, y=-15, z=0.5),
+#     carla.Rotation(yaw=180 -15)
+# )
+
+#-------------------------TRACK02---------------------------------
+# spawn_point = carla.Transform(
+#    carla.Location(x=17, y=-4.2, z=0.5),
+#    carla.Rotation(yaw=180-15)
+# )
+
+#-------------------------TRACK04---------------------------------
 spawn_point = carla.Transform(
     carla.Location(x=-10, y=21.2, z=1),
-    carla.Rotation(yaw=-15)
+    carla.Rotation(yaw=180 -15)
 )
+
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 if not vehicle:
     print("Unable to spawn vehicle")
     exit()
 print("Vehicle spawned correctly")
+
+#client.start_recorder(log_filename, True)
+
 
 camera_bp = blueprint_library.find('sensor.camera.rgb')
 camera_bp.set_attribute('image_size_x', str(WIDTH))
@@ -91,9 +125,17 @@ current_steer = 0.0
 current_throttle = 0.0
 current_brake = 0.0
 
+DURACION_S = 80
+t0 = time.time() 
+
 running = True
 while running:
     try:
+
+        if time.time() - t0 >= DURACION_S:
+            print("Saliendo…")
+            running = False
+
         buffer = conn.recv(1024).decode(errors='ignore').strip()
         if not buffer:
             continue
@@ -123,7 +165,7 @@ while running:
                                 brake_normalized = 1.0 - (l2_val / 255.0)
                                 current_brake =  max(0.0, min(1.0, l2_val / 255.0))
                 except Exception as e:
-                    print("⚠️ Error parsing line:", e)
+                    print("Error parsing line:", e)
                     continue
 
         # Apply control
@@ -143,18 +185,18 @@ while running:
         # Speed display
         velocity = vehicle.get_velocity()
         speed = (velocity.x**2 + velocity.y**2 + velocity.z**2)**0.5
-        print(f"Speed: {speed:.2f} m/s | Steer: {control.steer:.2f} | Throttle: {control.throttle:.2f} | Brake: {control.brake:.3f}")
+        #print(f"Speed: {speed:.2f} m/s | Steer: {control.steer:.2f} | Throttle: {control.throttle:.2f} | Brake: {control.brake:.3f}")
 
-        steer_history.append(control.steer)
-        throttle_history.append(control.throttle)
-        line1.set_ydata(steer_history)
-        line2.set_ydata(throttle_history)
-        line1.set_xdata(range(len(steer_history)))
-        line2.set_xdata(range(len(throttle_history)))
-        ax.relim()
-        ax.autoscale_view()
-        plt.draw()
-        plt.pause(0.001)
+        # steer_history.append(control.steer)
+        # throttle_history.append(control.throttle)
+        # line1.set_ydata(steer_history)
+        # line2.set_ydata(throttle_history)
+        # line1.set_xdata(range(len(steer_history)))
+        # line2.set_xdata(range(len(throttle_history)))
+        # ax.relim()
+        # ax.autoscale_view()
+        # plt.draw()
+        # plt.pause(0.001)
 
     except KeyboardInterrupt:
         print("Interrupted")
@@ -163,6 +205,8 @@ while running:
 # Cleanup
 camera.destroy()
 vehicle.destroy()
+client.stop_recorder()
+print("Terminada grabacion log")
 pygame.quit()
 conn.close()
 s.close()

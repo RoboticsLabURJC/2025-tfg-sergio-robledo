@@ -1,5 +1,5 @@
 #------------------------------------------------
-#Codigo definitivo para generar el dataset necesario para 
+#Codigo para generar el dataset necesario para 
 # el futuro entrenamiento del modelo, se obtiene por frame
 # la imagen rgv, la mascara, throttle, velocidad, steer, heading
 # En este caso comunicandose con un mando PRO de Nintendo en remoto desde otro ordenador

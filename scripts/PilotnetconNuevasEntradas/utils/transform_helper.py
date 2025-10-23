@@ -3,7 +3,6 @@ from torchvision import transforms
 def createTransform(augmentations=None):
     transform_list = []
 
-    # Puedes agregar más augmentations aquí si quieres
     transform_list.append(transforms.ToTensor())
 
     # Normalizar como PilotNet: valores entre [0,1]

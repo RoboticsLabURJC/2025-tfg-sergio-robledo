@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.backends.backend_agg as agg
 
 #Path del directorio a examinar y fichero csv
-BASE_PATH = "/home/sergior/Downloads/pruebas/datasets/Deepracer_BaseMap_1758397478577"
+BASE_PATH = "/home/sergior/Downloads/pruebas/clientCarlaScripts/Deepracer_BaseMap_1761064659946"
 CSV_PATH = os.path.join(BASE_PATH, "dataset.csv")
 df = pd.read_csv(CSV_PATH)
 
@@ -124,7 +124,7 @@ while running and index < len(df):
         estado_txt = estado_to_text(e_val)
         estado_col = estado_to_color(e_val)
 
-        # marco semitransparente detrás del texto (opcional)
+        # marco semitransparente detrás del texto
         label_bg = pygame.Surface((460, 60), pygame.SRCALPHA)
         label_bg.fill((50, 50, 50, 140))
         screen.blit(label_bg, (1220, 20))

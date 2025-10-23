@@ -8,7 +8,7 @@ import queue
 from queue import Queue
 
 
-LOG_FILE = "/tmp/Track02C.log"
+LOG_FILE = "/tmp/Track011CC.log"
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
@@ -73,7 +73,7 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("CARLA Replay")
-    #clock = pygame.time.Clock()
+    clock = pygame.time.Clock()
 
     client = carla.Client("127.0.0.1", 2000)
     client.set_timeout(10.0)
@@ -141,6 +141,7 @@ def main():
     try:
         while True:
 
+            clock.tick(FPS)
             world.tick()
 
             snap = world.get_snapshot()
@@ -193,10 +194,10 @@ def main():
             cur_pos = np.array([loc.x, loc.y, loc.z], dtype=float)
 
             if prev_pos is not None and dt and dt > 0:
-                # distancia (m) / tiempo (s) → velocidad en m/s
+                # distancia (m) / tiempo (s), velocidad en m/s
                 speed = float(np.linalg.norm(cur_pos - prev_pos) / dt)
 
-                # suavizado EMA opcional
+                # suavizado EMA
                 ema_v = speed if ema_v is None else (1-ALPHA)*ema_v + ALPHA*speed
                 speed = ema_v
 
@@ -208,10 +209,10 @@ def main():
             
             ctrl = ego.get_control()
             throttle = float(ctrl.throttle)
-            steer    = max(-1.0, min(1.0, float(ctrl.steer)))  # clamp por seguridad
+            steer    = max(-1.0, min(1.0, float(ctrl.steer)))
             brake    = float(ctrl.brake)
 
-            # Guardar desde t >= 10 s
+            # Guardar desde t >= 7 s
             if sim_time >= start_save_sim_t:
                 print("Guardando...")
                 ts = int(datetime.utcnow().timestamp()*1000)
