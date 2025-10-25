@@ -11,7 +11,7 @@ import csv
 from ControllerProxy import ControllerReceiver
 
 
-log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/Track011CC.log"
+log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/TrackTestSPEED.log"
 
 
 # ===================== ARGUMENTOS =====================
@@ -64,7 +64,7 @@ def main():
     settings.synchronous_mode = True
     settings.fixed_delta_seconds = 1.0 / FPS
     settings.substepping = False
-    world.apply_settings(settings)
+    #world.apply_settings(settings)
 
     # Tiempo de simulación (CSV)
     csv_path = "telemetry.csv"
@@ -94,7 +94,7 @@ def main():
     #spawn_point = carla.Transform(carla.Location(x=-3.7, y=-4, z=0.5), carla.Rotation(yaw=-120))
     
     #gillesvilleneuve
-    #spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
+    spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
 
     #interlagosautodromojosecarlospace
     #spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
@@ -109,7 +109,7 @@ def main():
     #spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=180-25))
     
     #lagoseco
-    spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
+    #spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
 
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -168,14 +168,7 @@ def main():
 
         # Timeout
         if time.time() - t0 >= DURACION_S:
-            client.stop_recorder()
-            print("Grabacion guardada!")
-            camera.stop()
-            camera.destroy()
-            vehicle.destroy()
-            pygame.quit()
-
-            print("Session ended.")
+            break
 
         # Eventos Pygame
         for event in pygame.event.get():
@@ -186,8 +179,9 @@ def main():
         # Aplicar control
         vehicle.apply_control(control)
 
-        snapshot = world.tick()
-        sim_time = snapshot.timestamp.elapsed_seconds
+        #world.tick()                            
+        snapshot = world.get_snapshot()               
+        sim_time = snapshot.timestamp.elapsed_seconds 
 
         # Mostrar cámara
         if camera_surface:
@@ -195,7 +189,7 @@ def main():
         pygame.display.flip()
 
         # Velocidad (m/s)
-        v = vehicle.get_velocity()
+        vel = vehicle.get_velocity()
         speed = float(np.linalg.norm([vel.x, vel.y, vel.z]))
         csv_writer.writerow([f"{sim_time:.6f}", f"{speed:.6f}"])
 
@@ -213,30 +207,27 @@ def main():
         # plt.draw()
         # plt.pause(0.001)
 
-        world.tick()
 
 
+    # ====== FIN / LIMPIEZA ======
     try: client.stop_recorder()
-        except: pass
-    try:
-        camera.stop()
-    except Exception:
-        pass
-    try:
-        camera.destroy()
-    except Exception:
-        pass
-    try:
-        vehicle.destroy()
-    except Exception:
-        pass
+    except: pass
+
+    try: camera.stop()
+    except: pass
+    try: camera.destroy()
+    except: pass
+    try: vehicle.destroy()
+    except: pass
     try:
         if hasattr(server, "stop"):
             server.stop()
-    except Exception:
-        pass
-    try: csv_fh.flush(); csv_fh.close()
-        except: pass
+    except: pass
+    try:
+        csv_fh.flush()
+        csv_fh.close()
+    except: pass
+
     pygame.quit()
     print("Session ended.")
 
