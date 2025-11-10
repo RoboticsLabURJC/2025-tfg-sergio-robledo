@@ -13,7 +13,7 @@ last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 last_net = None
-MODEL_PATH = "experiments/exp_debug_1760371287/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1762273351/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -84,10 +84,10 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------------------TRACK05---------------------------------
-# spawn_point = carla.Transform(
-#    carla.Location(x=-3.7, y=-4, z=0.5),
-#    carla.Rotation(yaw=-120)
-# )
+spawn_point = carla.Transform(
+   carla.Location(x=-3.7, y=-4, z=0.5),
+   carla.Rotation(yaw=-120)
+)
 
 #-------------------TRACK06-gillesvilleneuve----------------------
 # spawn_point = carla.Transform(
@@ -96,10 +96,22 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------TRACK07-interlagosautodromojosecarlospace-----------
-spawn_point = carla.Transform(
-   carla.Location(x=-1.5, y=71.5, z=0.5),
-   carla.Rotation(yaw=180)
-)
+# spawn_point = carla.Transform(
+#    carla.Location(x=-1.5, y=71.5, z=0.5),
+#    carla.Rotation(yaw=180)
+# )
+#nurburgring
+#spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=-180 + 150))
+
+#spafrancorchamps
+#spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=-90))
+
+#silverstone
+#spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=-25))
+
+#lagoseco
+#spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
+
 
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -272,10 +284,11 @@ while running:
     else:
         # ======== Inferencia con la cámara de 90° ========
     
-        timeglobal_var = time.time() 
-        fps_toprint = timeglobal_var - prev_timeglobal_var 
-        print(1/fps_toprint) 
-        prev_timeglobal_var = timeglobal_var
+        # timeglobal_var = time.time() 
+        # fps_toprint = timeglobal_var - prev_timeglobal_var 
+        # #print(1/fps_toprint) 
+        # prev_timeglobal_var = timeglobal_var
+        
         rgb_net = last_net
 
         if rgb_net is None:

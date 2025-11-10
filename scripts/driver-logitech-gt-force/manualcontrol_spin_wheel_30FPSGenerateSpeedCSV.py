@@ -9,12 +9,18 @@ from collections import deque
 import random
 import csv
 from ControllerProxy import ControllerReceiver
+import os
 
 
-log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/TrackTestSPEED.log"
+log_filename = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/secondrecord/Track05CSpeed.log"
+CSVNAME = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/secondrecord/speedtrack05C.csv"
+DURACION_S = 60
+
+if os.path.exists(log_filename):
+    os.remove(log_filename) 
 
 
-# ===================== ARGUMENTOS =====================
+# ===================== ARGUMENTOS ===============
 def parse_args():
     p = argparse.ArgumentParser("Control manual con volante (ControllerReceiver)")
     p.add_argument("--carla-host", default="127.0.0.1", type=str)
@@ -60,14 +66,14 @@ def main():
 
     world = client.get_world()
 
-    settings = world.get_settings()
-    settings.synchronous_mode = True
-    settings.fixed_delta_seconds = 1.0 / FPS
-    settings.substepping = False
+    # settings = world.get_settings()
+    # settings.synchronous_mode = True
+    # settings.fixed_delta_seconds = 1.0 / FPS
+    # settings.substepping = False
     #world.apply_settings(settings)
 
     # Tiempo de simulación (CSV)
-    csv_path = "telemetry.csv"
+    csv_path = CSVNAME
     csv_fh = open(csv_path, "w", newline="")
     csv_writer = csv.writer(csv_fh)
     csv_writer.writerow(["sim_time", "speed_m_s"])
@@ -85,31 +91,48 @@ def main():
 
     #spawn_point = carla.Transform(carla.Location(x=3, y=-1, z=0.5), carla.Rotation(yaw=-90))
 
-    #spawn_point = carla.Transform(carla.Location(x=-8.5, y=-14.7, z=0.5), carla.Rotation(yaw=-15))
+    #-------------------------TRACK5---------------------------------
+    spawn_point = carla.Transform(
+        carla.Location(x=-3.7, y=-4, z=0.5),
+        carla.Rotation(yaw=180-120)
+    )
 
-    #spawn_point = carla.Transform(carla.Location(x=17, y=-4.8, z=0.5), carla.Rotation(yaw=-10))
 
-    #spawn_point = carla.Transform(carla.Location(x=-10, y=21.2, z=1), carla.Rotation(yaw=-15))
-    
-    #spawn_point = carla.Transform(carla.Location(x=-3.7, y=-4, z=0.5), carla.Rotation(yaw=-120))
-    
+    #-------------------------TRACK3---------------------------------
+    # spawn_point = carla.Transform(
+    #     carla.Location(x=-7, y=-15, z=0.5),
+    #     carla.Rotation(yaw=-15)
+    # )
+
+    #-------------------------TRACK2---------------------------------
+    # spawn_point = carla.Transform(
+    #      carla.Location(x=17, y=-4.2, z=0.5),
+    #      carla.Rotation(yaw=-15)
+    # )
+
+    #-------------------------TRACK4-------------------------------
+    # spawn_point = carla.Transform(
+    #    carla.Location(x=-9.9, y=21.2, z=0.5),
+    #    carla.Rotation(yaw=-20)
+    # )
+
     #gillesvilleneuve
-    spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
+    #spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
 
     #interlagosautodromojosecarlospace
     #spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
     
     #nurburgring
-    #spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=150))
+    #spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=-150))
     
     #spafrancorchamps
     #spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=-90))
     
     #silverstone
-    #spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=180-25))
+    #spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=-25))
     
     #lagoseco
-    #spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
+    #spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=-25))
 
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -156,18 +179,25 @@ def main():
     print(f"ControllerReceiver escuchando en puerto {args.controller_port}")
 
 
-    DURACION_S = 140
-    t0 = time.time() 
     running = True
 
+    # Wait for vehicle to spawn and drop yo avoid collecting drop data
+    #time.sleep(2.0)
+
+    # Start time at 0 for the speed csv
+    snapshot = world.get_snapshot()               
+    t0 = snapshot.timestamp.elapsed_seconds
 
     while running:
 
         clock.tick(FPS)
 
+        snapshot = world.get_snapshot()               
+        sim_time = snapshot.timestamp.elapsed_seconds 
+        rel_time = sim_time - t0
 
         # Timeout
-        if time.time() - t0 >= DURACION_S:
+        if rel_time >= DURACION_S:
             break
 
         # Eventos Pygame
@@ -180,8 +210,6 @@ def main():
         vehicle.apply_control(control)
 
         #world.tick()                            
-        snapshot = world.get_snapshot()               
-        sim_time = snapshot.timestamp.elapsed_seconds 
 
         # Mostrar cámara
         if camera_surface:
@@ -191,7 +219,8 @@ def main():
         # Velocidad (m/s)
         vel = vehicle.get_velocity()
         speed = float(np.linalg.norm([vel.x, vel.y, vel.z]))
-        csv_writer.writerow([f"{sim_time:.6f}", f"{speed:.6f}"])
+        timetowrite = sim_time - t0
+        csv_writer.writerow([f"{rel_time:.6f}", f"{speed:.6f}"])
 
         #print(f"Speed: {speed:.2f} m/s | Steer: {control.steer:+.3f} | Throttle: {control.throttle:.3f} | Brake: {control.brake:.3f}")
 

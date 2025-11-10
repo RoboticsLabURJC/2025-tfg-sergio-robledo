@@ -1,5 +1,5 @@
 # ------------------------------------------------
-# Inferencia automática con dos cámaras: PID (FOV 140) + NN (FOV 90)
+# Inferencia automática NN (FOV 90)
 # ------------------------------------------------
 import carla, time, pygame, numpy as np, cv2, torch, queue
 from queue import Queue
@@ -14,14 +14,14 @@ ema_v    = None          # filtro EMA para suavizar
 ALPHA_V  = 0.2           # 0..1, más alto = menos suave
 
 
-pid_on = False
+inithelp = True
 prev_timeglobal_var = 0.0
 last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 
-MODEL_PATH = "experiments/exp_debug_1760960171/trained_models/pilot_net_model_best_123.pth"
-image_shape = (66, 200, 3)
+MODEL_PATH = "experiments/exp_debug_1762700241/trained_models/pilot_net_model_best_123.pth"
+image_shape = (66, 200, 4)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
 model.eval()
@@ -37,19 +37,19 @@ VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
-WARMUP_SEC = 30.0  # tiempo de PID antes de pasar a la red
+WARMUP_SEC = 2.0  # tiempo antes de pasar a la red
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("DeepRacer - PID 140° -> Red 90°")
+pygame.display.set_caption("DeepRacer")
 
 client = carla.Client(HOST, PORT)
 client.set_timeout(5.0)
 world = client.get_world()
 
-settings = world.get_settings()
-settings.synchronous_mode = True
-settings.fixed_delta_seconds = FIXED_DT
+# settings = world.get_settings()
+# settings.synchronous_mode = True
+# settings.fixed_delta_seconds = FIXED_DT
 #world.apply_settings(settings)
 
 
@@ -79,7 +79,7 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 
 #-------------------------TRACK02---------------------------------
 # spawn_point = carla.Transform(
-#    carla.Location(x=17, y=-4.8, z=0.5),
+#    carla.Location(x=17, y=-4.5, z=0.5),
 #    carla.Rotation(yaw=-10)
 # )
 
@@ -90,10 +90,10 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------------------TRACK05---------------------------------
-# spawn_point = carla.Transform(
-#    carla.Location(x=-3.7, y=-4, z=0.5),
-#    carla.Rotation(yaw=-120)
-# )
+spawn_point = carla.Transform(
+   carla.Location(x=-3.7, y=-4, z=0.5),
+   carla.Rotation(yaw=-120)
+)
 
 #-------------------TRACK06-gillesvilleneuve----------------------
 # spawn_point = carla.Transform(
@@ -101,11 +101,21 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 #    carla.Rotation(yaw=180)
 # )
 
-#-------------TRACK07-interlagosautodromojosecarlospace-----------
-spawn_point = carla.Transform(
-   carla.Location(x=-1.5, y=71.5, z=0.5),
-   carla.Rotation(yaw=0)
-)
+#interlagosautodromojosecarlospace
+#spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
+
+#nurburgring
+#spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=150))
+
+#spafrancorchamps
+#spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=-90))
+
+#silverstone
+#spawn_point = carla.Transform(carla.Location(x=-67, y=228, z=0.5), carla.Rotation(yaw=-25))
+
+#lagoseco
+#spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
+
 
 
 vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -114,11 +124,6 @@ if not vehicle:
 print("Vehículo spawneado")
 
 # --- cámaras ---
-cam_bp_pid = bp.find('sensor.camera.rgb')
-cam_bp_pid.set_attribute('image_size_x', str(WIDTH))
-cam_bp_pid.set_attribute('image_size_y', str(HEIGHT))
-cam_bp_pid.set_attribute('fov', '140')
-cam_bp_pid.set_attribute('sensor_tick', '0.0')  # 1 frame por tick
 
 cam_bp_net = bp.find('sensor.camera.rgb')
 cam_bp_net.set_attribute('image_size_x', str(WIDTH))
@@ -135,7 +140,6 @@ cam_bp_thirdperson.set_attribute('sensor_tick', '0.0')
 
 
 cam_tf = carla.Transform(carla.Location(x=0.13, z=0.13), carla.Rotation(pitch=-30))
-cam_pid = world.spawn_actor(cam_bp_pid, cam_tf, attach_to=vehicle)
 cam_net = world.spawn_actor(cam_bp_net, cam_tf, attach_to=vehicle)
 
 cam_tf_third = carla.Transform(
@@ -145,7 +149,6 @@ cam_tf_third = carla.Transform(
 cam_thirdperson = world.spawn_actor(cam_bp_thirdperson, cam_tf_third, attach_to=vehicle)
 
 # buffers de frames
-rgb_pid_q   = Queue(maxsize=1)    # FOV 140 para PID
 rgb_net_q   = Queue(maxsize=1)    # FOV 90 para la red
 rgb_third_q = Queue(maxsize=1)    # Tercera persona
 
@@ -161,17 +164,12 @@ def cb_third(image: carla.Image):
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
     _safe_put(rgb_third_q, bgra[:, :, :3][:, :, ::-1])
 
-def cb_pid(image: carla.Image):
-    bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
-    _safe_put(rgb_pid_q, bgra[:, :, :3][:, :, ::-1])
-
 def cb_net(image: carla.Image):
 
     bgra = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(image.height, image.width, 4)
     _safe_put(rgb_net_q, bgra[:, :, :3][:, :, ::-1])
 
 cam_thirdperson.listen(cb_third)
-cam_pid.listen(cb_pid)
 cam_net.listen(cb_net)
 
 vehicle.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0))
@@ -203,127 +201,94 @@ def draw_with_pip(main_rgb, pip_rgb):
 
     pygame.display.flip()
 
+clock = pygame.time.Clock()
 
 while running:
-    #world.tick()
-    sim_t = world.get_snapshot().timestamp.elapsed_seconds
+
+    clock.tick(30) 
+    
+    snap = world.get_snapshot()
+    if snap is None:
+        continue
+    sim_t = snap.timestamp.elapsed_seconds - start_sim
+    dt    = snap.timestamp.delta_seconds
+    
 
     # cambio por tiempo 
-    if pid_on and (sim_t - start_sim) >= WARMUP_SEC:
-        pid_on = False
+    if inithelp and sim_t >= WARMUP_SEC:
+        inithelp = False
+
 
     # ESC para salir, SPACE para alternar manualmente
     for e in pygame.event.get():
         if e.type == pygame.QUIT: running = False
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE: running = False
-            if e.key == pygame.K_SPACE:  pid_on = not pid_on
+            if e.key == pygame.K_SPACE:  inithelp = not inithelp
 
     # Coge el último frame disponible (sin bloquear)
-    try: last_pid   = rgb_pid_q.get_nowait()
-    except queue.Empty: pass
     try: last_net   = rgb_net_q.get_nowait()
     except queue.Empty: pass
     try: last_third = rgb_third_q.get_nowait()
     except queue.Empty: pass
 
-    if pid_on:
-        # ======== PID con la cámara de 140° ========
-        rgb_pid = last_pid
-        if rgb_pid is None:
-            continue
 
-        hsv = cv2.cvtColor(rgb_pid, cv2.COLOR_RGB2HSV)
-        mask_y = cv2.inRange(hsv, np.array([18, 50, 150]), np.array([40, 255, 255]))
-        mask_w = cv2.inRange(hsv, np.array([0, 0, 200]),  np.array([180, 30, 255]))
+    # ======== Inferencia con la cámara de 90° ========
+    rgb_net = last_net
 
-        mask_c = np.zeros_like(mask_w, dtype=np.uint8)
-        mask_c[mask_w > 0] = 1
-        mask_c[mask_y > 0] = 2
+    if rgb_net is None:
+        continue
 
-        h, w = mask_c.shape
-        y = int(0.53 * h)
-        row = mask_c[y]
-        white_idx = np.where(row == 1)[0]
+    loc = vehicle.get_location()              # carla.Location
+    cur_pos = np.array([loc.x, loc.y, loc.z], dtype=float)
 
-        cx = None
-        if len(white_idx) > 10:
-            cx = (white_idx[0] + white_idx[-1]) // 2
+    if prev_pos is not None and dt and dt > 0:
+                
+        v = vehicle.get_velocity()
+        speed = float(np.sqrt(v.x**2 + v.y**2 + v.z**2))
+        print(speed)
+    
+    else:
+        speed = 0.0
+    
+    prev_pos = cur_pos
 
-        # control por defecto
-        steer, throttle = 0.0, 0.25
+    if inithelp:
 
-        if cx is not None:
-            img_cx = w // 2
-            error = -100.0 * (img_cx - cx) / img_cx
-            # PID (PD en este caso)
-          
-            derivative = error - last_error_steer
-            steer = np.clip(Kp_steer * error + Kd_steer * derivative, -1.0, 1.0)
-            last_error_steer = error
-
-            throttle = np.clip(0.8 - Kp_throttle * abs(error), 0.2, 0.6)
-
-        vehicle.apply_control(carla.VehicleControl(throttle=float(throttle), steer=float(steer)))
-
-        # overlay
-        vis = rgb_pid.copy()
-        if cx is not None:
-            cv2.line(vis, (0, y), (w-1, y), (100,100,100), 1)
-            cv2.line(vis, (w//2, 0), (w//2, h), (128,128,128), 1)
-            cv2.circle(vis, (cx, y), 4, (255,0,0), -1)
-
-        draw_with_pip(last_third, vis)
+        steer = 0.0
+        throttle = 0.6
 
     else:
-        # ======== Inferencia con la cámara de 90° ========
-    
-        timeglobal_var = time.time() 
-        fps_toprint = timeglobal_var - prev_timeglobal_var 
-        #print(1/fps_toprint) 
-        prev_timeglobal_var = timeglobal_var
-        rgb_net = last_net
+        # Calcula velocidad (m/s) y escálala igual que en train (÷5.0 y clip 0..1)
+        speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
 
-        if rgb_net is None:
-            continue
+        # x: (1, 3, 66, 200) imagen 3 canales
+        x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
 
-        loc = vehicle.get_location()              # carla.Location
-        cur_pos = np.array([loc.x, loc.y, loc.z], dtype=float)
+        # === Crear el canal de velocidad (1, 1, 66, 200) ===
+        speed_plane = torch.full((1, 1, 66, 200), speed_norm, dtype=x.dtype, device=x.device)
+        # concatena
+        x4 = torch.cat([x, speed_plane], dim=1)
 
-        if prev_pos is not None:
-                    
-            speed = float(np.linalg.norm(cur_pos - prev_pos) / fps_toprint)  # m/s
-            ema_v = speed if ema_v is None else (1 - ALPHA_V) * ema_v + ALPHA_V * speed
-            speed = ema_v
-            print(speed)
-        
-        else:
-            speed = 0.0
-        
-        prev_pos = cur_pos
-
-        speed_norm = min(max(speed / 5.0, 0.0), 1.0)  # misma escala que dataset
-        spd_tensor = torch.tensor([[speed_norm]], dtype=torch.float32)
-        
         with torch.no_grad():
-            x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
-            out = model(x, spd_tensor)
+
+            # pasar SOLO un tensor al modelo (este ya reduce 4→3 con el adapter 1×1)
+            out = model(x4)  
             steer, throttle = out[0].tolist()
 
         steer    = float(np.clip(steer,    -1.0, 1.0))
+
         throttle = float(np.clip(throttle,  0.0, 1.0))
-        vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-        #print("Throttle: ",throttle," Steer= ",steer)
- 
+    vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-        # PiP con la cámara en tercera persona (arriba a la derecha)
-        draw_with_pip(last_third, rgb_net)
+    #print("Throttle: ",throttle," Steer= ",steer)
+
+    # PiP con la cámara en tercera persona (arriba a la derecha)
+    draw_with_pip(last_third, rgb_net)
 
 
 # limpieza
-try: cam_pid.stop(); cam_pid.destroy()
-except: pass
 try: cam_net.stop(); cam_net.destroy()
 except: pass
 try: cam_third.stop(); cam_third.destroy()

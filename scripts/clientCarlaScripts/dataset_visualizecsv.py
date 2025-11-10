@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.backends.backend_agg as agg
 
 #Path del directorio a examinar y fichero csv
-BASE_PATH = "/home/sergior/Downloads/pruebas/clientCarlaScripts/Deepracer_BaseMap_1761064659946"
+BASE_PATH = "/home/sergior/Downloads/pruebas/datasets/validation/Deepracer_BaseMap_1762448921691"
 CSV_PATH = os.path.join(BASE_PATH, "dataset.csv")
 df = pd.read_csv(CSV_PATH)
 
@@ -136,7 +136,7 @@ while running and index < len(df):
         screen.blit(warn_surf, (1220, 30))
 
     pygame.display.flip()
-    time.sleep(1/60)
+    time.sleep(1/1000)
     index += 1
 
 pygame.quit()

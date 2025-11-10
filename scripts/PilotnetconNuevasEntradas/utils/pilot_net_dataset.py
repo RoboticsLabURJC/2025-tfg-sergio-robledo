@@ -6,14 +6,12 @@ import os, csv
 import numpy as np
 
 class PilotNetDataset(Dataset):
-    def __init__(self, folder_paths, mirrored=False, transform=None, preprocessing=None,
-                 speed_scale=5.0):      
+    def __init__(self, folder_paths, mirrored=False, transform=None, preprocessing=None):
         self.image_paths, self.labels = [], []
-        self.speeds = []                 
+        self.speeds = []
         self.transform = transform
         self.mirrored = mirrored
         self.preprocessing = preprocessing
-        self.speed_scale = float(speed_scale)
 
         for folder in folder_paths:
             csv_path = os.path.join(folder, "dataset.csv")
@@ -28,13 +26,12 @@ class PilotNetDataset(Dataset):
                     if not os.path.isfile(img_abs):
                         print(f"[Warning] Falta imagen: {img_abs}")
                         continue
-
+                    
                     steer = float(row["steer"])
                     throttle = float(row["throttle"])
-                    #lee velocidad (m/s) y normaliza
                     spd = float(row.get("speed", 0.0))
-                    spd_norm = np.clip(spd / self.speed_scale, 0.0, 1.0)
-
+                    spd_norm = np.clip(spd / 3.5, 0.0, 1.0)
+                    
                     self.image_paths.append(img_abs)
                     self.labels.append([steer, throttle])
                     self.speeds.append(spd_norm)
@@ -47,6 +44,7 @@ class PilotNetDataset(Dataset):
         self.image_shape = (66, 200, 3)
         self.num_labels = 2
 
+        # Transform por defecto si no pasan uno
         if self.transform is None:
             self.transform = transforms.Compose([
                 transforms.Resize((66, 200)),
@@ -63,10 +61,18 @@ class PilotNetDataset(Dataset):
         img_path = entry[0] if isinstance(entry, tuple) else entry
 
         img = Image.open(img_path).convert("RGB")
+
         if mirrored:
             img = ImageOps.mirror(img)
 
         img = self.transform(img)
+
+        # ===== Canal de velocidad =====
+        spd_norm = self.speeds[idx]                    # float en [0,1]
+        speed_plane = torch.full((1, 66, 200), spd_norm, dtype=torch.float32)
+
+        # Concatenar → (4,66,200)
+        img4 = torch.cat([img, speed_plane], dim=0)
+
         y = torch.tensor(self.labels[idx], dtype=torch.float32)
-        spd = torch.tensor([self.speeds[idx]], dtype=torch.float32)
-        return img, spd, y
+        return img4, y

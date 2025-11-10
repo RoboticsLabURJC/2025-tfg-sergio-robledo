@@ -15,6 +15,37 @@ from tqdm import tqdm
 import csv
 from torch.utils.data import Subset
 from torchvision import transforms
+import matplotlib.pyplot as plt 
+
+def mse_dict_to_percent_rmse(mse_dict):
+    # Convierte cada MSE en %RMSE = sqrt(MSE) * 100
+    return {k: (float(v) ** 0.5) * 100.0 for k, v in mse_dict.items()}
+
+def make_bar_figure_percent(values_dict, title="Summary %RMSE"):
+    fig, ax = plt.subplots(figsize=(4,3), dpi=120)
+    labels = list(values_dict.keys())
+    vals   = [values_dict[k] for k in labels]
+    ax.bar(labels, vals)
+    ax.set_title(title)
+    ax.set_ylabel("% RMSE")
+    ax.grid(True, axis='y', alpha=0.3)
+    for i, v in enumerate(vals):
+        ax.text(i, v, f"{v:.2f}%", ha='center', va='bottom', fontsize=8)
+    fig.tight_layout()
+    return fig
+
+def make_bar_figure(values_dict, title="Summary", ylabel="Metric"):
+    fig, ax = plt.subplots(figsize=(4,3), dpi=120)
+    labels = list(values_dict.keys())
+    vals   = [values_dict[k] for k in labels]
+    ax.bar(labels, vals)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, axis='y', alpha=0.3)
+    for i, v in enumerate(vals):
+        ax.text(i, v, f"{v:.4f}", ha='center', va='bottom', fontsize=8)
+    fig.tight_layout()
+    return fig
 
 
 def parse_args():
@@ -46,13 +77,6 @@ if __name__ == "__main__":
 
     print("TRAIN dirs:", args.data_dir)
     print("TEST dirs :", args.test_dir)
-
-    # Avisos de solape
-    # if args.test_dir:
-    #     print("Overlap TRAIN-TEST:", set(args.data_dir).intersection(set(args.test_dir)))
-    # print("Overlap TRAIN-VAL :", set(args.data_dir).intersection(set(args.val_dir)))
-    # if args.test_dir:
-    #     print("Overlap VAL-TEST :", set(args.test_dir).intersection(set(args.val_dir)))
 
     # Convierte args en dict y guarda
     exp_setup = vars(args)
@@ -112,9 +136,8 @@ if __name__ == "__main__":
     full_dataset = PilotNetDataset(
         args.data_dir,            
         mirrored=False,
-        transform=COMMON_TF,
-        preprocessing=args.preprocess,
-        speed_scale=5.0,
+        transform=COMMON_TF,   # sin augs
+        preprocessing=args.preprocess
     )
 
     N = len(full_dataset)
@@ -139,14 +162,11 @@ if __name__ == "__main__":
     val_loader   = DataLoader(val_dataset,   batch_size=batch_size,
                               shuffle=False, num_workers=4, pin_memory=True)
 
-    # Modelo (usa un dataset de probe para obtener shape y #labels)
-    probe_ds = PilotNetDataset(args.data_dir, mirrored=False,
-                           transform=COMMON_TF,
-                           preprocessing=args.preprocess,
-                           speed_scale=10.0)
+    pilotModel = PilotNet(image_shape=(66,200,4), num_labels=2).to(device)
+    #print("DEBUG -> model.num_channels:", pilotModel.num_channels)          # debe ser 4
+    #print("DEBUG -> ln_1.num_features :", pilotModel.ln_1.num_features)     # debe ser 4
 
-    pilotModel = PilotNet(probe_ds.image_shape, probe_ds.num_labels).to(device)
-    
+        
     ckpt_latest = os.path.join(model_save_dir, f'pilot_net_model_{random_seed}.pth')
     if os.path.isfile(ckpt_latest):
         pilotModel.load_state_dict(torch.load(ckpt_latest, map_location=device))
@@ -173,14 +193,14 @@ if __name__ == "__main__":
         pilotModel.train()
         train_loss = 0.0
 
-        for i, batch in enumerate(train_loader):
-            #el dataset devuelve (img, speed, label)
-            images, speeds, labels = batch
-            images = images.float().to(device)
-            speeds = speeds.float().to(device)      # (B,1)
-            labels = labels.float().to(device)
+        for i, (images, labels) in enumerate(train_loader):
+            if i == 0:
+                print("Batch shape:", images.shape)
 
-            outputs = pilotModel(images,speeds)
+            images = FLOAT(images).to(device)
+            labels = FLOAT(labels.float()).to(device)
+
+            outputs = pilotModel(images)
             loss = criterion_train(outputs, labels)
             train_loss += loss.item()
 
@@ -206,11 +226,10 @@ if __name__ == "__main__":
         val_mse = 0.0
         val_mae = 0.0
         with torch.no_grad():
-            for images, speeds, labels in val_loader:
-                images = images.float().to(device)
-                speeds = speeds.float().to(device)   # (B,1)
-                labels = labels.float().to(device)
-                outputs = pilotModel(images, speeds) 
+            for images, labels in val_loader:
+                images = FLOAT(images).to(device)
+                labels = FLOAT(labels.float()).to(device)
+                outputs = pilotModel(images)
                 val_mse += criterion_mse(outputs, labels).item()
                 val_mae += criterion_mae(outputs, labels).item()
 
@@ -232,6 +251,28 @@ if __name__ == "__main__":
 
         print(f'Epoch [{epoch+1}/{num_epochs}]  Val MSE: {val_mse:.4f} | Val MAE: {val_mae:.4f}  {mssg}')
 
+        avg_train_loss = train_loss / len(train_loader)
+
+        # MSE en barras
+        fig_epoch_bars = make_bar_figure(
+            {"Train(Loss)": avg_train_loss, "Val(MSE)": val_mse},
+            title=f"Epoch {epoch+1} - Train vs Val",
+            ylabel="Loss / MSE"
+        )
+        writer.add_figure("bars/train_val_epoch_mse", fig_epoch_bars, global_step=epoch+1)
+        plt.close(fig_epoch_bars)
+
+        # RMSE en barras en %
+        percent_rmse_dict = mse_dict_to_percent_rmse({"Train": avg_train_loss, "Val": val_mse})
+
+        fig_epoch_bars_pct = make_bar_figure_percent(percent_rmse_dict, 
+            title=f"Epoch {epoch+1} - %RMSE Train vs Val")
+
+        writer.add_figure("bars/train_val_epoch_percent_rmse", 
+        fig_epoch_bars_pct, global_step=epoch+1)
+        plt.close(fig_epoch_bars_pct)
+
+
     # ======= TEST =======
     pilotModel = best_model
 
@@ -239,7 +280,7 @@ if __name__ == "__main__":
     if args.test_dir is not None:
         overlap = set(test_dirs).intersection(set(args.data_dir))
         if overlap:
-            print(f"[WARN] Estas carpetas están en train y test a la vez (evítalo): {sorted(overlap)}")
+            print(f"[WARN] Estas carpetas están en train y test a la vez: {sorted(overlap)}")
 
     test_set = PilotNetDataset(
         test_dirs,
@@ -256,11 +297,10 @@ if __name__ == "__main__":
     test_mse_throttle = test_mae_throttle = 0.0
 
     with torch.no_grad():
-        for images, speeds, labels in tqdm(test_loader):
+        for images, labels in tqdm(test_loader):
             images = FLOAT(images).to(device)
-            speeds = FLOAT(speeds).to(device)
             labels = FLOAT(labels.float()).to(device)
-            outputs = pilotModel(images,speeds)
+            outputs = pilotModel(images)
 
             test_mse += criterion_mse(outputs, labels).item()
             test_mae += criterion_mae(outputs, labels).item()
@@ -282,6 +322,21 @@ if __name__ == "__main__":
     writer.add_scalar('performance/Test_MAE_throttle', test_mae_throttle)
     writer.add_scalar('performance/Test_MSE_throttle', test_mse_throttle)
 
+    # MSE EN barras
+    fig_final_mse = make_bar_figure(
+        {"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse},
+        title="Final MSE/Loss Summary",
+        ylabel="MSE / Loss"
+    )
+    writer.add_figure("bars/final_mse", fig_final_mse, global_step=num_epochs)
+    plt.close(fig_final_mse)
+
+    # RMSE EN % en barras
+    final_pct_dict = mse_dict_to_percent_rmse({"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse})
+    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final %RMSE Summary")
+    writer.add_figure("bars/final_percent_rmse", fig_final_pct, global_step=num_epochs)
+    plt.close(fig_final_pct)
+
     print(f"Test  -> MAE: {test_mae:.4f} | MSE: {test_mse:.4f}")
     print(f"Steer -> MAE: {test_mae_steer:.4f} | MSE: {test_mse_steer:.4f}")
     print(f"Throt -> MAE: {test_mae_throttle:.4f} | MSE: {test_mse_throttle:.4f}")
@@ -290,16 +345,16 @@ if __name__ == "__main__":
     torch.save(pilotModel.state_dict(), os.path.join(model_save_dir, f'pilot_net_model_deepracer_{random_seed}.pth'))
 
     net_file_name = "mynet_deepracer_gpu.onnx" if torch.cuda.is_available() else "mynet_deepracer.onnx"
-    dummy_img = torch.randn(1, 3, 66, 200, device=device)
-    dummy_spd = torch.randn(1, 1, device=device) 
+    dummy_input = torch.randn(1, 4, 66, 200, device=device)
     pilotModel = pilotModel.to(device)
 
     torch.onnx.export(
-        pilotModel, (dummy_img, dummy_spd),
+        pilotModel,
+        dummy_input,
         net_file_name,
         verbose=True,
         export_params=True,
         opset_version=9,
-        input_names=['img', 'speed'],
+        input_names=['input'],
         output_names=['output']
     )

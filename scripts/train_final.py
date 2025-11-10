@@ -15,6 +15,38 @@ from tqdm import tqdm
 import csv
 from torch.utils.data import Subset
 from torchvision import transforms
+import matplotlib.pyplot as plt 
+
+def mse_dict_to_percent_rmse(mse_dict):
+    # Convierte cada MSE en %RMSE = sqrt(MSE) * 100
+    return {k: (float(v) ** 0.5) * 100.0 for k, v in mse_dict.items()}
+
+def make_bar_figure_percent(values_dict, title="Summary %RMSE"):
+    fig, ax = plt.subplots(figsize=(4,3), dpi=120)
+    labels = list(values_dict.keys())
+    vals   = [values_dict[k] for k in labels]
+    ax.bar(labels, vals)
+    ax.set_title(title)
+    ax.set_ylabel("% RMSE")
+    ax.grid(True, axis='y', alpha=0.3)
+    for i, v in enumerate(vals):
+        ax.text(i, v, f"{v:.2f}%", ha='center', va='bottom', fontsize=8)
+    fig.tight_layout()
+    return fig
+
+def make_bar_figure(values_dict, title="Summary", ylabel="Metric"):
+    fig, ax = plt.subplots(figsize=(4,3), dpi=120)
+    labels = list(values_dict.keys())
+    vals   = [values_dict[k] for k in labels]
+    ax.bar(labels, vals)
+    ax.set_title(title)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, axis='y', alpha=0.3)
+    for i, v in enumerate(vals):
+        ax.text(i, v, f"{v:.4f}", ha='center', va='bottom', fontsize=8)
+    fig.tight_layout()
+    return fig
+
 
 
 def parse_args():
@@ -22,7 +54,7 @@ def parse_args():
 
     parser.add_argument("--data_dir", action='append', required=True, help="Directory(ies) for Train Data")
     parser.add_argument("--test_dir", action='append', help="Directory(ies) for Test Data")
-    #parser.add_argument("--val_dir", action='append', required=True, help="Directory(ies) for Validation Data")
+    parser.add_argument("--val_dir", action='append', required=True, help="Directory(ies) for Validation Data")
     parser.add_argument("--val_split", type=float, default=0.2,
                         help="Proporción para validación (por defecto 0.2 = 20%)")
     parser.add_argument("--preprocess", action='append', default=None,
@@ -46,6 +78,7 @@ if __name__ == "__main__":
 
     print("TRAIN dirs:", args.data_dir)
     print("TEST dirs :", args.test_dir)
+    print("VAL   dirs:", args.val_dir)
 
     # Convierte args en dict y guarda
     exp_setup = vars(args)
@@ -85,16 +118,6 @@ if __name__ == "__main__":
     writer_output = csv.writer(open(csv_log_path, "w"))
     writer_output.writerow(["epoch", "val_mse", "val_mae"])
 
-    # ===========================
-    # SIN AUGMENTATIONS
-    # ===========================
-    # transformations_eval = createTransform([])   # ToTensor + Normalize; SIN augs
-    # transformations_train = createTransform([])  # igual que eval (sin augs)
-
-    # ===========================
-    # Dataset único y split 80/20
-    # ===========================
-
     # ===== Transform común para todo (train/val/test/inferencia) =====
     COMMON_TF = transforms.Compose([
         transforms.Resize((66, 200)),
@@ -102,27 +125,20 @@ if __name__ == "__main__":
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
     ])
 
-    full_dataset = PilotNetDataset(
-        args.data_dir,            
+    train_dataset = PilotNetDataset(
+        args.data_dir,
         mirrored=False,
-        transform=COMMON_TF,   # sin augs
+        transform=COMMON_TF,
+        preprocessing=args.preprocess
+    )
+    val_dataset = PilotNetDataset(
+        args.val_dir,
+        mirrored=False,
+        transform=COMMON_TF,
         preprocessing=args.preprocess
     )
 
-    N = len(full_dataset)
-    rng = np.random.RandomState(args.seed)
-    indices = np.arange(N)
-    rng.shuffle(indices)
-
-    n_val = int(round(args.val_split * N))
-    val_idx = indices[:n_val]
-    train_idx = indices[n_val:]
-
-
-    train_dataset = Subset(full_dataset, train_idx)
-    val_dataset   = Subset(full_dataset, val_idx)
-
-    print(f"Samples totales: {N}  |  train: {len(train_dataset)}  |  val: {len(val_dataset)}")
+    print(f"train: {len(train_dataset)}  |  val: {len(val_dataset)}")
     
     
     # Loaders
@@ -222,6 +238,27 @@ if __name__ == "__main__":
 
         print(f'Epoch [{epoch+1}/{num_epochs}]  Val MSE: {val_mse:.4f} | Val MAE: {val_mae:.4f}  {mssg}')
 
+        avg_train_loss = train_loss / len(train_loader)
+
+        # MSE en barras
+        fig_epoch_bars = make_bar_figure(
+            {"Train(Loss)": avg_train_loss, "Val(MSE)": val_mse},
+            title=f"Epoch {epoch+1} - Train vs Val",
+            ylabel="Loss / MSE"
+        )
+        writer.add_figure("bars/train_val_epoch_mse", fig_epoch_bars, global_step=epoch+1)
+        plt.close(fig_epoch_bars)
+
+        # RMSE en barras en %
+        percent_rmse_dict = mse_dict_to_percent_rmse({"Train": avg_train_loss, "Val": val_mse})
+
+        fig_epoch_bars_pct = make_bar_figure_percent(percent_rmse_dict, 
+            title=f"Epoch {epoch+1} - %RMSE Train vs Val")
+
+        writer.add_figure("bars/train_val_epoch_percent_rmse", 
+        fig_epoch_bars_pct, global_step=epoch+1)
+        plt.close(fig_epoch_bars_pct)
+
     # ======= TEST =======
     pilotModel = best_model
 
@@ -271,9 +308,40 @@ if __name__ == "__main__":
     writer.add_scalar('performance/Test_MAE_throttle', test_mae_throttle)
     writer.add_scalar('performance/Test_MSE_throttle', test_mse_throttle)
 
+    # MSE EN barras
+    fig_final_mse = make_bar_figure(
+        {"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse},
+        title="Final MSE/Loss Summary",
+        ylabel="MSE / Loss"
+    )
+    writer.add_figure("bars/final_mse", fig_final_mse, global_step=num_epochs)
+    plt.close(fig_final_mse)
+
+    # RMSE EN % en barras
+    final_pct_dict = mse_dict_to_percent_rmse({"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse})
+    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final %RMSE Summary")
+    writer.add_figure("bars/final_percent_rmse", fig_final_pct, global_step=num_epochs)
+    plt.close(fig_final_pct)
+
     print(f"Test  -> MAE: {test_mae:.4f} | MSE: {test_mse:.4f}")
     print(f"Steer -> MAE: {test_mae_steer:.4f} | MSE: {test_mse_steer:.4f}")
     print(f"Throt -> MAE: {test_mae_throttle:.4f} | MSE: {test_mse_throttle:.4f}")
+
+
+    # ==== %RMSE finales en csv ====
+    train_pct_rmse_final = (avg_train_loss ** 0.5) * 100.0   # del último epoch
+    val_pct_rmse_final   = (val_mse        ** 0.5) * 100.0   # del último epoch
+    test_pct_rmse_final  = (test_mse       ** 0.5) * 100.0   # del test final
+
+    final_csv = os.path.join(base_dir, "percent_rmse.csv")
+    with open(final_csv, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["train_pct_rmse", "val_pct_rmse", "test_pct_rmse"])
+        w.writerow([f"{train_pct_rmse_final:.6f}",
+                    f"{val_pct_rmse_final:.6f}",
+                    f"{test_pct_rmse_final:.6f}"])
+
+    print(f"[OK] Guardado %RMSE final en: {final_csv}")
 
     # Save final + ONNX
     torch.save(pilotModel.state_dict(), os.path.join(model_save_dir, f'pilot_net_model_deepracer_{random_seed}.pth'))
