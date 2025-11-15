@@ -10,10 +10,8 @@ import pandas as pd
 import os
 
 
-
-
-SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/secondrecord/speedtrack01CC.csv"
-LOG_FILE = "/tmp/Track01CCSpeed.log"
+SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/secondrecord/speedtrack08CC.csv"
+LOG_FILE = "/tmp/Track08CCSpeed.log"
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
@@ -71,8 +69,7 @@ def volcar_speed_secuencial(
     speed_csv: str,
     dst_speed_col: str = "speed",
     src_speed_col: str = "speed_m_s",
-    start_dst_row: int = 0,
-    start_src_row: int = 0
+    src_time_col: str = "sim_time"
 ):
     import os
     import pandas as pd
@@ -88,47 +85,62 @@ def volcar_speed_secuencial(
     df_dst = pd.read_csv(dataset_csv)
     df_src = pd.read_csv(speed_csv)
 
+    for col in ["timestamp", dst_speed_col]:
+        if col not in df_dst.columns:
+            print(f"[ERROR] El dataset no tiene columna '{col}'.")
+            return
+    for col in [src_time_col, src_speed_col]:
+        if col not in df_src.columns:
+            print(f"[ERROR] El CSV de velocidades no tiene columna '{col}'.")
+            return
     if df_dst.empty or df_src.empty:
         print("[WARN] Dataset o CSV de velocidades vacío.")
         return
-    if dst_speed_col not in df_dst.columns:
-        print(f"[ERROR] El dataset no tiene columna '{dst_speed_col}'.")
+
+    # Convertir a numérico
+    dst_ts = pd.to_numeric(df_dst["timestamp"], errors="coerce")
+    src_ts = pd.to_numeric(df_src[src_time_col], errors="coerce")
+    src_sp = pd.to_numeric(df_src[src_speed_col], errors="coerce")
+
+    # Filtrar NaN en origen
+    valid_src_mask = src_ts.notna() & src_sp.notna()
+    if not valid_src_mask.any():
+        print("[WARN] No hay filas válidas en el CSV de velocidades.")
         return
-    if src_speed_col not in df_src.columns:
-        print(f"[ERROR] El CSV de velocidades no tiene columna '{src_speed_col}'.")
+
+    # 1) Tomamos el PRIMER tiempo válido del CSV de velocidad 
+    first_src_idx = np.where(valid_src_mask.to_numpy())[0][0]
+    first_src_time = float(src_ts.iloc[first_src_idx])
+
+    # 2) Buscamos en dataset el índice cuyo timestamp sea MÁS CERCANO
+    if dst_ts.notna().sum() == 0:
+        print("[ERROR] Todos los 'timestamp' del dataset son NaN.")
         return
 
-    # --- Estadísticas previas ---
-    dst_speed_num = pd.to_numeric(df_dst[dst_speed_col], errors="coerce")
-    cnt_dst_rows        = len(df_dst)
-    cnt_dst_notnull     = dst_speed_num.notna().sum()
-    cnt_dst_gt_zero     = (dst_speed_num.fillna(0) > 0).sum()
+    # Índice de encaje por mínima diferencia absoluta
+    diffs = np.abs(dst_ts - first_src_time)
+    anchor_dst_idx = int(diffs.idxmin())
 
-    src_speed_num = pd.to_numeric(df_src[src_speed_col], errors="coerce")
-    cnt_src_rows        = len(df_src)
-    cnt_src_numeric     = src_speed_num.notna().sum()
+    # 3) Preparar los vectores a copiar
+    src_v = src_sp.iloc[first_src_idx:].to_numpy(dtype=float)
 
-    print("[INFO] Dataset:")
-    print(f"  filas totales             : {cnt_dst_rows}")
-    print(f"  '{dst_speed_col}' no nulas: {cnt_dst_notnull}")
-    print(f"  '{dst_speed_col}' > 0     : {cnt_dst_gt_zero}")
-    print("[INFO] SPEED_CSV:")
-    print(f"  filas totales             : {cnt_src_rows}")
-    print(f"  '{src_speed_col}' numéricas: {cnt_src_numeric}")
-
-    # --- Copiado secuencial (ignorando tiempos) ---
-    src_v = src_speed_num.iloc[start_src_row:].dropna().astype(float).to_numpy()
-
-    n_dst = len(df_dst) - start_dst_row
+    # 4) Copiado secuencial desde el anchor en dataset
+    n_dst = len(df_dst) - anchor_dst_idx
     n_src = len(src_v)
     n = min(n_dst, n_src)
+
     if n <= 0:
-        print("[WARN] No hay filas suficientes para acoplar.")
+        print("[WARN] No hay espacio para acoplar velocidades.")
         return
 
-    df_dst.loc[start_dst_row:start_dst_row + n - 1, dst_speed_col] = src_v[:n]
+    df_dst.loc[anchor_dst_idx:anchor_dst_idx + n - 1, dst_speed_col] = src_v[:n]
     df_dst.to_csv(dataset_csv, index=False)
-    print(f"[OK] Copiadas {n} velocidades en '{dst_speed_col}' (secuencial, ignorando tiempos).")
+
+    # 5) Info
+    print("[INFO] Encaje por timestamp:")
+    print(f"  - first_src_time (vel CSV) = {first_src_time:.6f}")
+    print(f"  - timestamp(dataset)[anchor] = {dst_ts.iloc[anchor_dst_idx]:.6f} (idx={anchor_dst_idx})")
+    print(f"[OK] Copiadas {n} velocidades en '{dst_speed_col}' desde {anchor_dst_idx} (secuencial, tiempos ignorados tras el ancla).")
 
 
 def main():
@@ -283,9 +295,7 @@ def main():
                 CSV_PATH,
                 SPEED_CSV,
                 dst_speed_col="speed",
-                src_speed_col="speed_m_s",
-                start_dst_row=0,  
-                start_src_row=0 
+                src_speed_col="speed_m_s"
             )
         except Exception as e:
             print(f"[ERROR] Acople secuencial de velocidades: {e}")

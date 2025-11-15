@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.backends.backend_agg as agg
 
 #Path del directorio a examinar y fichero csv
-BASE_PATH = "/home/sergior/Downloads/pruebas/datasets/validation/Deepracer_BaseMap_1762448921691"
+BASE_PATH = "/home/sergior/Downloads/pruebas/datasets/Deepracer_BaseMap_1762447691602"
 CSV_PATH = os.path.join(BASE_PATH, "dataset.csv")
 df = pd.read_csv(CSV_PATH)
 

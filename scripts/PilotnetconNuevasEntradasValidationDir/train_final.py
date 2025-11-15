@@ -21,13 +21,13 @@ def mse_dict_to_percent_rmse(mse_dict):
     # Convierte cada MSE en %RMSE = sqrt(MSE) * 100
     return {k: (float(v) ** 0.5) * 100.0 for k, v in mse_dict.items()}
 
-def make_bar_figure_percent(values_dict, title="Summary %RMSE"):
+def make_bar_figure_percent(values_dict, title="Summary Error (%)"):
     fig, ax = plt.subplots(figsize=(4,3), dpi=120)
     labels = list(values_dict.keys())
     vals   = [values_dict[k] for k in labels]
     ax.bar(labels, vals)
     ax.set_title(title)
-    ax.set_ylabel("% RMSE")
+    ax.set_ylabel("Error (%)")
     ax.grid(True, axis='y', alpha=0.3)
     for i, v in enumerate(vals):
         ax.text(i, v, f"{v:.2f}%", ha='center', va='bottom', fontsize=8)
@@ -64,6 +64,11 @@ def parse_args():
     # Hparams
     parser.add_argument("--num_epochs", type=int, default=80, help="Number of Epochs")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--early_stop_patience", type=int, default=10,
+                    help="Número de epochs sin mejorar antes de parar")
+    parser.add_argument("--early_stop_min_delta", type=float, default=1e-4,
+                    help="Mejora mínima requerida en val_mse para resetear paciencia")
+
     parser.add_argument("--batch_size", type=int, default=128, help="Batch size")
     parser.add_argument("--save_iter", type=int, default=50, help="Iterations between saves")
     parser.add_argument("--print_terminal", action="store_true", help="Print progress every 10 steps")
@@ -170,6 +175,12 @@ if __name__ == "__main__":
     global_iter = 0
     global_val_mse = float('inf')
 
+    #---Early stopping-----
+    patience = args.early_stop_patience
+    min_delta = args.early_stop_min_delta
+    epochs_no_improve = 0
+    #----------------------
+
     print("*********** Training Started ************")
     for epoch in range(last_epoch, num_epochs):
         pilotModel.train()
@@ -223,13 +234,20 @@ if __name__ == "__main__":
         writer.add_scalar("performance/valid_loss", val_mse, epoch+1)
         writer_output.writerow([epoch+1, val_mse, val_mae])
 
-        if val_mse < global_val_mse:
+        if val_mse < global_val_mse - min_delta:
             global_val_mse = val_mse
             best_model = deepcopy(pilotModel)
+            epochs_no_improve = 0
             torch.save(best_model.state_dict(), os.path.join(model_save_dir, f'pilot_net_model_best_{random_seed}.pth'))
             mssg = "Model Improved!!"
         else:
-            mssg = "Not Improved!!"
+            epochs_no_improve += 1
+            mssg = f"Not Improved!! ({epochs_no_improve}/{patience})"
+
+        # ---- EARLY STOPPING ----
+        if epochs_no_improve >= patience:
+            print(f"\n[EARLY STOP] No mejora en {patience} epochs. Parando entrenamiento.")
+            break
 
         print(f'Epoch [{epoch+1}/{num_epochs}]  Val MSE: {val_mse:.4f} | Val MAE: {val_mae:.4f}  {mssg}')
 
@@ -248,7 +266,7 @@ if __name__ == "__main__":
         percent_rmse_dict = mse_dict_to_percent_rmse({"Train": avg_train_loss, "Val": val_mse})
 
         fig_epoch_bars_pct = make_bar_figure_percent(percent_rmse_dict, 
-            title=f"Epoch {epoch+1} - %RMSE Train vs Val")
+            title=f"Epoch {epoch+1} - %Error Train vs Val")
 
         writer.add_figure("bars/train_val_epoch_percent_rmse", 
         fig_epoch_bars_pct, global_step=epoch+1)
@@ -315,7 +333,7 @@ if __name__ == "__main__":
 
     # RMSE EN % en barras
     final_pct_dict = mse_dict_to_percent_rmse({"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse})
-    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final %RMSE Summary")
+    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final error Summary")
     writer.add_figure("bars/final_percent_rmse", fig_final_pct, global_step=num_epochs)
     plt.close(fig_final_pct)
 
@@ -337,7 +355,7 @@ if __name__ == "__main__":
                     f"{val_pct_rmse_final:.6f}",
                     f"{test_pct_rmse_final:.6f}"])
 
-    print(f"[OK] Guardado %RMSE final en: {final_csv}")
+    print(f"[OK] Guardado %Error final en: {final_csv}")
 
 
     # Save final + ONNX

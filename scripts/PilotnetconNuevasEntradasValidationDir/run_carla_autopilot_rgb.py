@@ -20,7 +20,7 @@ last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 
-MODEL_PATH = "experiments/exp_debug_1762700241/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1762968577/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 4)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
@@ -74,7 +74,7 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 #-------------------------TRACK03---------------------------------
 # spawn_point = carla.Transform(
 #     carla.Location(x=-8, y=-15, z=0.5),
-#     carla.Rotation(yaw=-15)
+#     carla.Rotation(yaw=10)
 # )
 
 #-------------------------TRACK02---------------------------------

@@ -62,7 +62,7 @@ def main():
     )
     ap.add_argument(
         "--pattern",
-        default="../datasets/validation/Deepracer_*/dataset.csv",
+        default="../datasets/Deepracer_*/dataset.csv",
         help="Patrón de búsqueda de CSV (por defecto: ../datasets/Deepracer_*/dataset.csv)."
     )
     ap.add_argument("--save", default=None,

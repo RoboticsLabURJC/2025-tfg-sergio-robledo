@@ -24,21 +24,21 @@ def read_pct_csv(path):
     }
 
 def main():
-    ap = argparse.ArgumentParser(description="Gráfico comparativo %RMSE (con vs sin velocidad)")
-    ap.add_argument("--csv_sin_vel", default="percent_rmse.csv",
+    ap = argparse.ArgumentParser(description="Error% (TR(1,2,3),V(5),TE(4))")
+    ap.add_argument("--csv_sin_vel", default="/home/sergior/Downloads/pruebas/PilotnetDefault/percent_rmse.csv",
                     help="CSV sin velocidad (por defecto: percent_rmse.csv)")
     ap.add_argument("--csv_con_vel", default="/home/sergior/Downloads/pruebas/PilotnetconNuevasEntradasValidationDir/percent_rmse_speed_label.csv",
                     help="CSV con velocidad (por defecto: /PilotnetconNuevasEntradasValidationDir/percent_rmse_speed_label.csv)")
-    ap.add_argument("--title", default="%RMSE final - Train/Val/Test (con vs sin velocidad)")
+    ap.add_argument("--title", default="Error% (TR(1,2,3),V(5),TE(4))")
     ap.add_argument("--out", default="comparativa_percent_rmse.png", help="Ruta de salida de la figura")
     args = ap.parse_args()
 
     sin = read_pct_csv(args.csv_sin_vel)
     con = read_pct_csv(args.csv_con_vel)
 
-    print("==== %RMSE (sin velocidad) ====")
+    print("==== Error% (sin velocidad) ====")
     print(f"Train: {sin['train']:.3f} | Val: {sin['val']:.3f} | Test: {sin['test']:.3f}")
-    print("==== %RMSE (con velocidad) ====")
+    print("==== Error% (con velocidad) ====")
     print(f"Train: {con['train']:.3f} | Val: {con['val']:.3f} | Test: {con['test']:.3f}")
 
     categorias = ['Train', 'Validation', 'Test']
@@ -53,7 +53,7 @@ def main():
     bars2 = ax.bar(x + width/2, y_con, width, label="Con velocidad")
 
     ax.set_title(args.title)
-    ax.set_ylabel("% RMSE")
+    ax.set_ylabel("Error")
     ax.set_xticks(x, categorias)
     ax.grid(axis='y', alpha=0.3)
     ax.legend()

@@ -32,4 +32,4 @@ with torch.no_grad():
     output = model(image)
     steer, throttle = output[0].tolist()
 
-print(f"Predicción: steer={steer:.4f}, ⚡ throttle={throttle:.4f}")
+print(f"Predicción: steer={steer:.4f},  throttle={throttle:.4f}")
