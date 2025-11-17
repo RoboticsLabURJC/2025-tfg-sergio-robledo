@@ -17,6 +17,46 @@ from torch.utils.data import Subset
 from torchvision import transforms
 import matplotlib.pyplot as plt 
 
+def r2_from_batches(y_true_list, y_pred_list):
+    """
+    Entradas: 
+    - y_true_list: lista de tensores con las etiquetas de test 
+        (cada tensor es un batch: (batch_size, 2)).
+    - y_pred_list: lista de tensores con las predicciones del modelo
+         (mismas dimensiones).
+
+    Calcula R² para steer y throttle a partir de listas de tensores (batches).
+    Devuelve un dict con:
+      - "mean": R² medio de steer y throttle
+      - "steer": R² sólo para steer
+      - "throttle": R² sólo para throttle
+    """
+    # Concatenar todos los batches: (N, 2)
+    y_true = torch.cat(y_true_list, dim=0)  # labels
+    y_pred = torch.cat(y_pred_list, dim=0)  # outputs
+
+    y_true = y_true.float()
+    y_pred = y_pred.float()
+
+    # (SumSquares) SS_res y SS_tot por componente (col 0 = steer, col 1 = throttle)
+    ss_res = torch.sum((y_true - y_pred) ** 2, dim=0)      # shape (2,)
+    y_mean = torch.mean(y_true, dim=0)                     # shape (2,)
+    ss_tot = torch.sum((y_true - y_mean) ** 2, dim=0)      # shape (2,)
+
+    eps = 1e-8 # evitar divisiones por 0
+    r2_vec = 1.0 - ss_res / (ss_tot + eps)                 # shape (2,)
+
+    r2_steer    = float(r2_vec[0].item())
+    r2_throttle = float(r2_vec[1].item())
+    r2_mean     = float(r2_vec.mean().item())
+
+    return {
+        "mean":     r2_mean,
+        "steer":    r2_steer,
+        "throttle": r2_throttle,
+    }
+
+
 def mse_dict_to_percent_rmse(mse_dict):
     # Convierte cada MSE en %RMSE = sqrt(MSE) * 100
     return {k: (float(v) ** 0.5) * 100.0 for k, v in mse_dict.items()}
@@ -296,6 +336,15 @@ if __name__ == "__main__":
     test_mse_steer = test_mae_steer = 0.0
     test_mse_throttle = test_mae_throttle = 0.0
 
+    # listas para R²
+    test_y_true_batches = []
+    test_y_pred_batches = []
+    # Acumuladores para graficar GT vs Predicción
+    all_gt_steer      = []
+    all_pred_steer    = []
+    all_gt_throttle   = []
+    all_pred_throttle = []
+
     with torch.no_grad():
         for images, labels in tqdm(test_loader):
             images = FLOAT(images).to(device)
@@ -310,10 +359,29 @@ if __name__ == "__main__":
             test_mse_throttle += criterion_mse(outputs[:, 1], labels[:, 1]).item()
             test_mae_throttle += criterion_mae(outputs[:, 1], labels[:, 1]).item()
 
+            #guardar para R²
+            test_y_true_batches.append(labels.cpu())
+            test_y_pred_batches.append(outputs.cpu())
+
+            # ---- Guardar datos para el scatter GT vs Pred ----
+            # labels: (batch, 2) -> [steer, throttle]
+            all_gt_steer.extend(labels[:, 0].cpu().numpy())
+            all_pred_steer.extend(outputs[:, 0].cpu().numpy())
+
+            all_gt_throttle.extend(labels[:, 1].cpu().numpy())
+            all_pred_throttle.extend(outputs[:, 1].cpu().numpy())
+
     n = len(test_loader)
     test_mse /= n; test_mae /= n
     test_mse_steer /= n; test_mae_steer /= n
     test_mse_throttle /= n; test_mae_throttle /= n
+
+
+    # calcular R² en test
+    test_r2_dict = r2_from_batches(test_y_true_batches, test_y_pred_batches)
+    test_r2_mean     = test_r2_dict["mean"]
+    test_r2_steer    = test_r2_dict["steer"]
+    test_r2_throttle = test_r2_dict["throttle"]
 
     writer.add_scalar('performance/Test_MAE', test_mae)
     writer.add_scalar('performance/Test_MSE', test_mse)
@@ -321,6 +389,11 @@ if __name__ == "__main__":
     writer.add_scalar('performance/Test_MSE_steer', test_mse_steer)
     writer.add_scalar('performance/Test_MAE_throttle', test_mae_throttle)
     writer.add_scalar('performance/Test_MSE_throttle', test_mse_throttle)
+
+    # R² en TensorBoard
+    writer.add_scalar('performance/Test_R2_mean',     test_r2_mean)
+    writer.add_scalar('performance/Test_R2_steer',    test_r2_steer)
+    writer.add_scalar('performance/Test_R2_throttle', test_r2_throttle)
 
     # MSE EN barras
     fig_final_mse = make_bar_figure(
@@ -337,10 +410,59 @@ if __name__ == "__main__":
     writer.add_figure("bars/final_percent_rmse", fig_final_pct, global_step=num_epochs)
     plt.close(fig_final_pct)
 
+    # R2 en barras
+    r2_dict_final = {
+        "R2_mean":     test_r2_mean,
+        "R2_steer":    test_r2_steer,
+        "R2_throttle": test_r2_throttle,
+    }
+    fig_r2 = make_bar_figure(r2_dict_final, title="Final R² Summary", ylabel="R²")
+    writer.add_figure("bars/final_r2", fig_r2, global_step=num_epochs)
+    plt.close(fig_r2)
+
+    # Convertir a numpy
+    all_gt_steer      = np.array(all_gt_steer)
+    all_pred_steer    = np.array(all_pred_steer)
+    all_gt_throttle   = np.array(all_gt_throttle)
+    all_pred_throttle = np.array(all_pred_throttle)
+
+    # ===== Scatter GT vs Pred: STEER =====
+    fig_scatter_steer, ax_s = plt.subplots(figsize=(4,4), dpi=120)
+    ax_s.scatter(all_gt_steer, all_pred_steer, alpha=0.3, s=5)
+    # Línea y = x
+    min_s = min(all_gt_steer.min(), all_pred_steer.min())
+    max_s = max(all_gt_steer.max(), all_pred_steer.max())
+    ax_s.plot([min_s, max_s], [min_s, max_s], 'r--', linewidth=1)
+    ax_s.set_xlabel("Steer GT")
+    ax_s.set_ylabel("Steer Pred")
+    ax_s.set_title("GT vs Pred - Steer (Test)")
+    ax_s.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    # mandarlo a TensorBoard:
+    writer.add_figure("scatter/test_steer_gt_vs_pred", fig_scatter_steer)
+    plt.close(fig_scatter_steer)
+
+    # ===== Scatter GT vs Pred: THROTTLE =====
+    fig_scatter_th, ax_t = plt.subplots(figsize=(4,4), dpi=120)
+    ax_t.scatter(all_gt_throttle, all_pred_throttle, alpha=0.3, s=5)
+    min_t = min(all_gt_throttle.min(), all_pred_throttle.min())
+    max_t = max(all_gt_throttle.max(), all_pred_throttle.max())
+    ax_t.plot([min_t, max_t], [min_t, max_t], 'r--', linewidth=1)
+    ax_t.set_xlabel("Throttle GT")
+    ax_t.set_ylabel("Throttle Pred")
+    ax_t.set_title("GT vs Pred - Throttle (Test)")
+    ax_t.grid(True, alpha=0.3)
+    plt.tight_layout()
+    fig_scatter_th.savefig(os.path.join(base_dir, "scatter_throttle_test.png"))
+    writer.add_figure("scatter/test_throttle_gt_vs_pred", fig_scatter_th)
+    plt.close(fig_scatter_th)
+
+    # Prints
     print(f"Test  -> MAE: {test_mae:.4f} | MSE: {test_mse:.4f}")
     print(f"Steer -> MAE: {test_mae_steer:.4f} | MSE: {test_mse_steer:.4f}")
     print(f"Throt -> MAE: {test_mae_throttle:.4f} | MSE: {test_mse_throttle:.4f}")
-
+    print(f"Test R² -> mean: {test_r2_mean:.4f} | steer: {test_r2_steer:.4f} | throttle: {test_r2_throttle:.4f}")
 
     # ==== %RMSE finales en csv ====
     train_pct_rmse_final = (avg_train_loss ** 0.5) * 100.0   # del último epoch
