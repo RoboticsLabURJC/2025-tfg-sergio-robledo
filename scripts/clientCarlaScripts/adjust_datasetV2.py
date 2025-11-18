@@ -4,7 +4,8 @@
 # 2) Se obtiene un n_target_global = mínimo de todas esas cuentas.
 # 3) Cada circuito se balancea usando ese n_target_global.
 # 4) El PRIMER CSV de cada pareja “absorbe” al segundo (fusionado).
-# 5) Se BORRA el directorio del SEGUNDO de cada pareja (si no es dry-run).
+# 5) Se COPIAN las imágenes de rgb/ y masks/ del segundo al primero.
+# 6) Se BORRA el directorio del SEGUNDO de cada pareja (si no es dry-run).
 
 import os
 import glob
@@ -31,6 +32,37 @@ def pairwise(lst, size=2):
             print(f"[WARN] Grupo incompleto (se ignora): {group}")
     return pairs
 
+def copy_images_from_second_to_first(second_dir, first_dir):
+    """
+    Copia los contenidos de:
+      second_dir/rgb  -> first_dir/rgb
+      second_dir/masks -> first_dir/masks
+    Sin machacar ficheros ya existentes.
+    """
+    for sub in ["rgb", "masks"]:
+        src_sub = os.path.join(second_dir, sub)
+        dst_sub = os.path.join(first_dir, sub)
+
+        if not os.path.isdir(src_sub):
+            continue
+
+        os.makedirs(dst_sub, exist_ok=True)
+
+        for fname in os.listdir(src_sub):
+            src_file = os.path.join(src_sub, fname)
+            if not os.path.isfile(src_file):
+                continue
+            dst_file = os.path.join(dst_sub, fname)
+
+            if os.path.exists(dst_file):
+                # Si ya existe, no lo tocamos (por si mismo timestamp/nombre)
+                continue
+
+            try:
+                shutil.copy2(src_file, dst_file)
+            except Exception as e:
+                print(f"  [WARN] No se pudo copiar {src_file} -> {dst_file}: {e}")
+
 # ============================================================
 # 1) Cálculo del n_target GLOBAL entre todos los circuitos
 # ============================================================
@@ -44,7 +76,6 @@ def compute_global_target(circuits):
     for pair in circuits:
         dfs_src = []
 
-        # Cargar los 2 CSV del circuito y quedarnos sólo con estados 1/2/3
         for p in pair:
             df = load_csv_safe(p)
             if df is None:
@@ -187,7 +218,10 @@ def balancear_circuito(csv_paths, n_target_global, circuit_id,
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Balancea por circuitos (parejas Deepracer_BaseMap_*) usando un n_target GLOBAL, fusiona en el primer CSV y borra el directorio del segundo."
+        description=(
+            "Balancea por circuitos (parejas Deepracer_BaseMap_*) usando un n_target GLOBAL, "
+            "fusiona en el primer CSV, copia imágenes del segundo al primero y borra el directorio del segundo."
+        )
     )
     parser.add_argument(
         "--pattern",
@@ -195,7 +229,8 @@ def main():
         help="Patrón de búsqueda de CSV (por defecto: ../datasets/Deepracer_BaseMap_*/dataset.csv)."
     )
     parser.add_argument("--seed", type=int, default=42, help="Semilla para muestreo reproducible.")
-    parser.add_argument("--dry-run", action="store_true", help="No escribe cambios ni borra directorios, solo muestra lo que haría.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="No escribe cambios ni borra directorios, solo muestra lo que haría.")
     parser.add_argument("--no-backup", action="store_true", help="No crear .bak antes de sobrescribir.")
     args = parser.parse_args()
 
@@ -237,17 +272,23 @@ def main():
         if ok:
             total_ok += 1
 
-            # -------- borrar el directorio del segundo de la pareja --------
             if not args.dry_run:
+                first_csv  = pair[0]
                 second_csv = pair[1]
+                first_dir  = os.path.dirname(first_csv)
                 second_dir = os.path.dirname(second_csv)
+
+                # 1) Copiar imágenes de second_dir -> first_dir
+                print(f"  [COPY] Copiando imágenes de {second_dir} -> {first_dir}")
+                copy_images_from_second_to_first(second_dir, first_dir)
+
+                # 2) Borrar el directorio del segundo de la pareja
                 if os.path.isdir(second_dir):
                     print(f"  [CLEANUP] Borrando directorio del segundo de la pareja: {second_dir}")
                     try:
                         shutil.rmtree(second_dir)
                     except Exception as e:
                         print(f"  [WARN] No se pudo borrar {second_dir}: {e}")
-            # ----------------------------------------------------------------------
 
     print(f"\nResumen: {total_ok}/{len(circuits)} circuitos procesados correctamente"
           f"{' (dry-run)' if args.dry_run else ''}.")
