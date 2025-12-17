@@ -5,16 +5,44 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def load_csv(path: str) -> pd.DataFrame:
-    if not os.path.isfile(path):
-        raise FileNotFoundError(path)
-    return pd.read_csv(path)
-
+# -------------------------
+# CSV helpers
+# -------------------------
 def pick_col(df, names):
     for n in names:
         if n in df.columns:
             return n
     return None
+
+def load_positions_csv(path: str, who: str) -> pd.DataFrame:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+
+    df = pd.read_csv(path)
+
+    xcol = pick_col(df, ["x", "pos_x", "X"])
+    ycol = pick_col(df, ["y", "pos_y", "Y"])
+    zcol = pick_col(df, ["z", "pos_z", "Z"])
+
+    if xcol is None or ycol is None:
+        raise ValueError(f"[{who}] faltan columnas x/y. Columnas: {list(df.columns)}")
+
+    df = df.copy()
+    df[xcol] = pd.to_numeric(df[xcol], errors="coerce")
+    df[ycol] = pd.to_numeric(df[ycol], errors="coerce")
+    if zcol is not None:
+        df[zcol] = pd.to_numeric(df[zcol], errors="coerce")
+
+    df = df.dropna(subset=[xcol, ycol]).reset_index(drop=True)
+
+    df["x"] = df[xcol].astype(np.float64)
+    df["y"] = df[ycol].astype(np.float64)
+    if zcol is None or df[zcol].isna().all():
+        df["z"] = 0.2
+    else:
+        df["z"] = df[zcol].fillna(method="ffill").fillna(0.2).astype(np.float64)
+
+    return df
 
 def to_num(df: pd.DataFrame, cols):
     df = df.copy()
@@ -26,178 +54,178 @@ def to_num(df: pd.DataFrame, cols):
 def robust_clip_speed_mps(s: pd.Series, vmax=20.0) -> pd.Series:
     return s.where((s >= 0.0) & (s <= vmax))
 
+# -------------------------
+# Nearest neighbor (pos)
+# -------------------------
+def build_nn_index(P_inf: np.ndarray):
+    """
+    Devuelve un objeto con método query(P_ref)->(dist, idx)
+    Intenta scipy, luego sklearn, si no, fallback brute-force.
+    """
+    # 1) SciPy
+    try:
+        from scipy.spatial import cKDTree
+        tree = cKDTree(P_inf)
+        class _SciPyNN:
+            def query(self, Q):
+                dist, idx = tree.query(Q, k=1, workers=-1)
+                return dist.astype(np.float64), idx.astype(np.int64)
+        return _SciPyNN(), "scipy.cKDTree"
+    except Exception:
+        pass
+
+    # 2) scikit-learn
+    try:
+        from sklearn.neighbors import KDTree
+        tree = KDTree(P_inf, leaf_size=40)
+        class _SkNN:
+            def query(self, Q):
+                dist, idx = tree.query(Q, k=1)
+                return dist[:, 0].astype(np.float64), idx[:, 0].astype(np.int64)
+        return _SkNN(), "sklearn.KDTree"
+    except Exception:
+        pass
+
+    # 3) brute force (por bloques)
+    class _BruteNN:
+        def __init__(self, P):
+            self.P = P
+        def query(self, Q):
+            P = self.P
+            n = Q.shape[0]
+            best_dist2 = np.full(n, np.inf, dtype=np.float64)
+            best_idx = np.zeros(n, dtype=np.int64)
+
+            # Ajusta chunk según tamaño
+            chunk = 5000
+            for i0 in range(0, P.shape[0], chunk):
+                Pi = P[i0:i0+chunk]  # (m,3)
+                # dist2: (n,m) = sum((Q[:,None,:]-Pi[None,:,:])^2)
+                d2 = ((Q[:, None, :] - Pi[None, :, :]) ** 2).sum(axis=2)
+                j = np.argmin(d2, axis=1)
+                d2min = d2[np.arange(n), j]
+                better = d2min < best_dist2
+                best_dist2[better] = d2min[better]
+                best_idx[better] = (i0 + j[better]).astype(np.int64)
+
+            return np.sqrt(best_dist2), best_idx
+    return _BruteNN(P_inf), "brute-force"
+
+# -------------------------
+def mse(a: np.ndarray) -> float:
+    return float(np.mean(a * a))
+
+def rmse(a: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(a * a)))
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", required=True, help="dataset.csv (GT humano)")
+    ap.add_argument("--ref", required=True, help="dataset.csv (GT humano / grabado)")
     ap.add_argument("--inf", required=True, help="infer_log_*.csv (inferencia)")
     ap.add_argument("--plot", action="store_true", help="mostrar gráficas")
-    ap.add_argument("--speed_vmax", type=float, default=20.0, help="máximo razonable de speed (m/s) para filtrar outliers")
-    ap.add_argument("--max_match_dist", type=float, default=None,
-                    help="si lo pones (m), descarta emparejamientos con distancia > este umbral")
+    ap.add_argument("--thr_min", type=float, default=0.25, help="usar solo muestras REF con throttle > umbral (si existe)")
+    ap.add_argument("--v_min", type=float, default=0.01, help="usar solo muestras REF con speed > umbral (si existe)")
+    ap.add_argument("--speed_vmax", type=float, default=20.0, help="clip speed en REF para outliers")
+    ap.add_argument("--max_pairs", type=int, default=0, help="limita nº de puntos REF (0 = sin límite)")
     args = ap.parse_args()
 
-    df_ref = load_csv(args.ref)
-    df_inf = load_csv(args.inf)
+    df_ref = load_positions_csv(args.ref, "REF")
+    df_inf = load_positions_csv(args.inf, "INF")
 
-    # ----------------------------
-    # Detectar columnas REF
-    # ----------------------------
-    need_ref = ["timestamp", "steer", "throttle", "speed"]
-    for c in need_ref:
-        if c not in df_ref.columns:
-            raise ValueError(f"[REF] falta columna '{c}'. Columnas REF: {list(df_ref.columns)}")
+    # --- filtros SOLO en REF por throttle/speed  ---
+    df_ref = to_num(df_ref, ["throttle", "speed", "steer"])
+    if "speed" in df_ref.columns:
+        df_ref["speed"] = robust_clip_speed_mps(df_ref["speed"], vmax=args.speed_vmax)
 
-    xref = pick_col(df_ref, ["x", "pos_x", "X"])
-    yref = pick_col(df_ref, ["y", "pos_y", "Y"])
-    if xref is None or yref is None:
-        raise ValueError(f"[REF] faltan columnas x/y. Columnas REF: {list(df_ref.columns)}")
+    if "throttle" in df_ref.columns:
+        df_ref = df_ref[df_ref["throttle"] > args.thr_min]
+    if "speed" in df_ref.columns:
+        df_ref = df_ref[df_ref["speed"] > args.v_min]
 
-    # ----------------------------
-    # Detectar columnas INF
-    # ----------------------------
-    # Tiempo opcional, aquí NO lo usamos para alinear, pero lo dejamos por si quieres plot
-    t_inf = pick_col(df_inf, ["t", "time", "timestamp", "sim_time", "ts"])
-
-    if "speed_mps" not in df_inf.columns:
-        if "speed" in df_inf.columns:
-            df_inf = df_inf.rename(columns={"speed": "speed_mps"})
-        else:
-            raise ValueError(f"[INF] falta columna 'speed_mps' (o 'speed'). Columnas INF: {list(df_inf.columns)}")
-
-    xinf = pick_col(df_inf, ["x", "pos_x", "X"])
-    yinf = pick_col(df_inf, ["y", "pos_y", "Y"])
-    if xinf is None or yinf is None:
-        raise ValueError(f"[INF] faltan columnas x/y. Columnas INF: {list(df_inf.columns)}")
-
-    # ----------------------------
-    # Limpieza / numérico
-    # ----------------------------
-    df_ref = to_num(df_ref, ["timestamp", "steer", "throttle", "speed", xref, yref]).dropna(
-        subset=["timestamp", "steer", "throttle", "speed", xref, yref]
-    )
-    df_inf = to_num(df_inf, ["steer", "throttle", "speed_mps", xinf, yinf] + ([t_inf] if t_inf else [])).dropna(
-        subset=["steer", "throttle", "speed_mps", xinf, yinf]
-    )
-
-    df_ref = df_ref.sort_values("timestamp").reset_index(drop=True)
-    # en INF no importa el orden para nearest, pero lo dejamos estable
-    if t_inf:
-        df_inf = df_inf.sort_values(t_inf).reset_index(drop=True)
-    else:
-        df_inf = df_inf.reset_index(drop=True)
-
-    # Filtrar outliers speed en REF (y también en INF si quieres)
-    df_ref["speed"] = robust_clip_speed_mps(df_ref["speed"], vmax=args.speed_vmax)
-    df_inf["speed_mps"] = robust_clip_speed_mps(df_inf["speed_mps"], vmax=args.speed_vmax)
-    df_ref = df_ref.dropna(subset=["speed"])
-    df_inf = df_inf.dropna(subset=["speed_mps"])
+    df_ref = df_ref.dropna(subset=["x", "y", "z"]).reset_index(drop=True)
+    df_inf = df_inf.dropna(subset=["x", "y", "z"]).reset_index(drop=True)
 
     if len(df_ref) < 10 or len(df_inf) < 10:
-        raise RuntimeError("Muy pocos puntos tras limpieza. Revisa tus CSV.")
+        raise RuntimeError(f"Demasiados pocos puntos tras filtrar. REF={len(df_ref)} INF={len(df_inf)}")
 
-    # ----------------------------
-    # Emparejar por nearest (x,y)
-    # ----------------------------
-    ref_xy = df_ref[[xref, yref]].to_numpy(dtype=np.float64)          # (N,2)
-    inf_xy = df_inf[[xinf, yinf]].to_numpy(dtype=np.float64)          # (M,2)
+    if args.max_pairs and args.max_pairs > 0 and len(df_ref) > args.max_pairs:
+        df_ref = df_ref.iloc[:args.max_pairs].reset_index(drop=True)
 
-    # Para cada ref, distancia a todos los inf: (N,M)
-    # Ojo: esto puede ser pesado si tienes MUCHOS puntos (>>50k). Si es tu caso, te paso versión KDTree.
-    d2 = ((ref_xy[:, None, :] - inf_xy[None, :, :]) ** 2).sum(axis=2)  # squared distance
-    nn_idx = np.argmin(d2, axis=1)
-    nn_dist = np.sqrt(d2[np.arange(len(ref_xy)), nn_idx])
+    # matrices Nx3
+    P_ref = df_ref[["x", "y", "z"]].to_numpy(dtype=np.float64)
+    P_inf = df_inf[["x", "y", "z"]].to_numpy(dtype=np.float64)
 
-    pairs = pd.DataFrame({
-        "timestamp_ref": df_ref["timestamp"].to_numpy(),
-        "x_ref": ref_xy[:, 0],
-        "y_ref": ref_xy[:, 1],
-        "steer_ref": df_ref["steer"].to_numpy(),
-        "throttle_ref": df_ref["throttle"].to_numpy(),
-        "speed_ref": df_ref["speed"].to_numpy(),
+    nn, method = build_nn_index(P_inf)
+    dist, idx = nn.query(P_ref)  # dist euclídea y índice en INF
 
-        "idx_inf": nn_idx,
-        "dist_xy": nn_dist,
+    P_match = P_inf[idx]  # (N,3)
+    dxyz = P_match - P_ref
 
-        "x_inf": inf_xy[nn_idx, 0],
-        "y_inf": inf_xy[nn_idx, 1],
-        "steer_inf": df_inf["steer"].to_numpy()[nn_idx],
-        "throttle_inf": df_inf["throttle"].to_numpy()[nn_idx],
-        "speed_inf": df_inf["speed_mps"].to_numpy()[nn_idx],
-    })
+    err_x = dxyz[:, 0]
+    err_y = dxyz[:, 1]
+    err_z = dxyz[:, 2]
 
-    if t_inf:
-        pairs["t_inf"] = df_inf[t_inf].to_numpy()[nn_idx]
-
-    # (Opcional) filtrar emparejamientos lejanos
-    if args.max_match_dist is not None:
-        before = len(pairs)
-        pairs = pairs[pairs["dist_xy"] <= float(args.max_match_dist)].reset_index(drop=True)
-        after = len(pairs)
-        if after < 10:
-            raise RuntimeError(f"Tras filtrar por max_match_dist quedaron muy pocos pares ({after}/{before}).")
-
-    # ----------------------------
-    # Métricas (MSE)
-    # ----------------------------
-    pairs["err_steer"] = pairs["steer_inf"] - pairs["steer_ref"]
-    pairs["err_throttle"] = pairs["throttle_inf"] - pairs["throttle_ref"]
-    pairs["err_speed"] = pairs["speed_inf"] - pairs["speed_ref"]
-
-    def mse(x): return float(np.mean(np.square(x)))
-    def rmse(x): return float(np.sqrt(np.mean(np.square(x))))
-
+    # Métricas
     stats = {
-        "N_pairs": len(pairs),
-        "MSE_dist_xy": mse(pairs["dist_xy"]),
-        "RMSE_dist_xy": rmse(pairs["dist_xy"]),
-        "MSE_steer": mse(pairs["err_steer"]),
-        "RMSE_steer": rmse(pairs["err_steer"]),
-        "MSE_throttle": mse(pairs["err_throttle"]),
-        "RMSE_throttle": rmse(pairs["err_throttle"]),
-        "MSE_speed": mse(pairs["err_speed"]),
-        "RMSE_speed": rmse(pairs["err_speed"]),
-        "MAE_speed": float(np.mean(np.abs(pairs["err_speed"]))),
-        "MAX_abs_speed": float(np.max(np.abs(pairs["err_speed"]))),
-        "AVG_match_dist": float(np.mean(pairs["dist_xy"])),
-        "P95_match_dist": float(np.percentile(pairs["dist_xy"], 95)),
+        "NN_method": method,
+        "N_pairs": int(len(P_ref)),
+        "MSE_x": mse(err_x),
+        "RMSE_x": rmse(err_x),
+        "MSE_y": mse(err_y),
+        "RMSE_y": rmse(err_y),
+        "MSE_z": mse(err_z),
+        "RMSE_z": rmse(err_z),
+        "MSE_xyz_mean": float((mse(err_x) + mse(err_y) + mse(err_z)) / 3.0),
+        "RMSE_dist": rmse(dist),   # RMSE de la distancia
+        "MSE_dist": mse(dist),
+        "mean_dist": float(np.mean(dist)),
+        "max_dist": float(np.max(dist)),
+        "p95_dist": float(np.percentile(dist, 95)),
     }
 
-    print("\n========== COMPARACIÓN (emparejado por nearest en XY) ==========")
-    print(f"N pares: {stats['N_pairs']}")
-    print(f"DIST_XY  MSE={stats['MSE_dist_xy']:.6f}  RMSE={stats['RMSE_dist_xy']:.6f}  AVG={stats['AVG_match_dist']:.3f}m  P95={stats['P95_match_dist']:.3f}m")
-    print(f"STEER    MSE={stats['MSE_steer']:.6f}   RMSE={stats['RMSE_steer']:.6f}")
-    print(f"THROTT   MSE={stats['MSE_throttle']:.6f} RMSE={stats['RMSE_throttle']:.6f}")
-    print(f"SPEED    MSE={stats['MSE_speed']:.6f}   RMSE={stats['RMSE_speed']:.6f}  (m/s)")
-    print(f"SPEED    MAE={stats['MAE_speed']:.6f}   MAX|err|={stats['MAX_abs_speed']:.6f} (m/s)")
-    print("===============================================================\n")
+    print("\n========== COMPARACIÓN POR POSICIÓN (nearest neighbor en XYZ) ==========")
+    print(f"Método NN: {stats['NN_method']}")
+    print(f"N emparejamientos: {stats['N_pairs']}")
+    print(f"X   MSE={stats['MSE_x']:.6f}  RMSE={stats['RMSE_x']:.6f} (m)")
+    print(f"Y   MSE={stats['MSE_y']:.6f}  RMSE={stats['RMSE_y']:.6f} (m)")
+    print(f"Z   MSE={stats['MSE_z']:.6f}  RMSE={stats['RMSE_z']:.6f} (m)")
+    print(f"XYZ mean MSE={stats['MSE_xyz_mean']:.6f}")
+    print(f"DIST MSE={stats['MSE_dist']:.6f}  RMSE={stats['RMSE_dist']:.6f} (m)")
+    print(f"DIST mean={stats['mean_dist']:.3f}  p95={stats['p95_dist']:.3f}  max={stats['max_dist']:.3f} (m)")
+    print("=======================================================================\n")
 
-    # ----------------------------
-    # Plots (opcional)
-    # ----------------------------
+    # Si quieres guardar el emparejamiento para inspección
+    out_pairs = pd.DataFrame({
+        "ref_x": P_ref[:, 0], "ref_y": P_ref[:, 1], "ref_z": P_ref[:, 2],
+        "inf_x": P_match[:, 0], "inf_y": P_match[:, 1], "inf_z": P_match[:, 2],
+        "err_x": err_x, "err_y": err_y, "err_z": err_z,
+        "dist_xyz": dist,
+        "inf_index": idx
+    })
+    # out_pairs.to_csv("pairs_by_position.csv", index=False)
+
     if args.plot:
-        # Para graficar, usamos el tiempo del ref (orden natural)
-        t = pairs["timestamp_ref"].to_numpy()
-
+        # Trayectorias XY
         plt.figure()
-        plt.plot(t, pairs["dist_xy"], label="dist_xy (m)")
-        plt.grid(True); plt.legend(); plt.title("Distancia espacial (GT -> INF nearest)"); plt.xlabel("timestamp_ref"); plt.ylabel("m")
+        plt.plot(df_ref["x"], df_ref["y"], label="REF (humano)")
+        plt.plot(df_inf["x"], df_inf["y"], label="INF (inferencia)")
+        plt.axis("equal")
+        plt.grid(True); plt.legend()
+        plt.title("Trayectorias XY (sin alinear por tiempo)"); plt.xlabel("x"); plt.ylabel("y")
 
+        # Distancia NN por muestra (en el orden del REF)
         plt.figure()
-        plt.plot(t, pairs["speed_ref"], label="speed_ref (GT)")
-        plt.plot(t, pairs["speed_inf"], label="speed_inf (paired)")
-        plt.grid(True); plt.legend(); plt.title("Velocidad (m/s)"); plt.xlabel("timestamp_ref"); plt.ylabel("m/s")
+        plt.plot(dist, label="distancia NN (m)")
+        plt.grid(True); plt.legend()
+        plt.title("Distancia al punto más cercano en INF (por cada punto REF)"); plt.xlabel("índice REF"); plt.ylabel("m")
 
+        # Errores por eje
         plt.figure()
-        plt.plot(t, pairs["err_speed"], label="err_speed (inf-ref)")
-        plt.grid(True); plt.legend(); plt.title("Error velocidad (m/s)"); plt.xlabel("timestamp_ref"); plt.ylabel("m/s")
-
-        plt.figure()
-        plt.plot(t, pairs["err_steer"], label="err_steer (inf-ref)")
-        plt.grid(True); plt.legend(); plt.title("Error steer"); plt.xlabel("timestamp_ref"); plt.ylabel("steer")
-
-        plt.figure()
-        plt.plot(t, pairs["err_throttle"], label="err_throttle (inf-ref)")
-        plt.grid(True); plt.legend(); plt.title("Error throttle"); plt.xlabel("timestamp_ref"); plt.ylabel("throttle")
+        plt.plot(err_x, label="err_x")
+        plt.plot(err_y, label="err_y")
+        plt.plot(err_z, label="err_z")
+        plt.grid(True); plt.legend()
+        plt.title("Errores por eje (INF_nn - REF)"); plt.xlabel("índice REF"); plt.ylabel("m")
 
         plt.show()
 
