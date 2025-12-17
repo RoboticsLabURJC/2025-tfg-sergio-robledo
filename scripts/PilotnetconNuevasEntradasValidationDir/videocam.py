@@ -7,30 +7,21 @@ import sys
 from collections import deque
 import math
 
-MODEL_PATH = "experiments/exp_debug_1761123196/trained_models/pilot_net_model_best_123.pth"
-image_shape = (66, 200, 3)
-model = PilotNet(image_shape, num_labels=2)
-model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+
+MODEL_PATH = "experiments/exp_debug_1765363556/trained_models/pilot_net_model_best_123.pth"
+image_shape = (66, 200, 4)        # 4 canales: RGB + speed
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+model = PilotNet(image_shape, num_labels=2).to(device)
+state = torch.load(MODEL_PATH, map_location=device)
+model.load_state_dict(state)
 model.eval()
 
-transform = transforms.Compose([
-    transforms.Resize((66, 200)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
-])
 
 VEHICLE_MODEL = 'vehicle.finaldeepracer.aws_deepracer'
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
-prev_timeglobal_var = 0.0
-
-
-# estado para velocidad por diferencias 
-prev_pos = None          # np.array([x,y,z]) del paso anterior
-ema_v    = None          # filtro EMA para suavizar (opcional)
-ALPHA_V  = 0.2           # 0..1, más alto = menos suave
-
 
 
 def _build_intrinsics(w, h, fov_deg_h):
@@ -88,13 +79,13 @@ def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
     return int(round(u)), int(round(v))
 
 def main():
-    global prev_timeglobal_var, prev_pos, ema_v
+    global prev_timeglobal_var
 
     cam_index = 1
     if len(sys.argv) > 1:
         try:
             cam_index = int(sys.argv[1])
-            if cam_index < -1 or cam_index > 11:
+            if cam_index < -1 or cam_index > 13:
                 print("Índice fuera de rango. Usando 1 por defecto.")
                 cam_index = 1
         except ValueError:
@@ -112,6 +103,8 @@ def main():
         9: carla.Location(x=-67, y=120.9,  z=30.0),
         10: carla.Location(x=-67, y=227,  z=33.0),
         11: carla.Location(x=-67, y=317,  z=30.0),
+        12: carla.Location(x=-37.9, y=-10,  z=10.0),
+        13: carla.Location(x=-68, y=-12,  z=8.0),
     }
 
     client = carla.Client('localhost', 2000)
@@ -161,6 +154,14 @@ def main():
     if cam_index == 11:
         #lagoseco
         spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=-25))
+    
+    if cam_index == 12:
+        #track12
+        spawn_point = carla.Transform(carla.Location(x=-29.2, y=-12, z=0.5), carla.Rotation(yaw=-120))
+    
+    if cam_index == 13:
+        #track12
+        spawn_point = carla.Transform(carla.Location(x=-60.2, y=-15, z=0.5), carla.Rotation(yaw=-120))
     
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
@@ -229,45 +230,74 @@ def main():
         transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
     ])
 
+    last_net = None
+    clock = pygame.time.Clock()
+
     try:
         while True:
 
             timeglobal_var = time.time() 
-            fps_toprint = timeglobal_var - prev_timeglobal_var 
-            #print(1/fps_toprint) 
-            prev_timeglobal_var = timeglobal_var
-        
+
             # ===== Inferencia y control del vehículo =====
             try: last_net   = rgb_net_q.get_nowait()
             except queue.Empty: pass
 
+            if last_net is None:
+                continue
+
+            clock.tick(30)
+            #print(time.time())
             rgb_net = last_net
 
             veh_loc = vehicle.get_location()
             cur_pos = np.array([veh_loc.x, veh_loc.y, veh_loc.z], dtype=float)
 
-            if prev_pos is not None:
-                        
-                speed = float(np.linalg.norm(cur_pos - prev_pos) / fps_toprint)  # m/s
-                ema_v = speed if ema_v is None else (1 - ALPHA_V) * ema_v + ALPHA_V * speed
-                speed = ema_v
-                print("speed: ",speed)
-            
-            else:
-                speed = 0.0
-            
-            prev_pos = cur_pos
+            vel = vehicle.get_velocity()
+            speed = float(np.linalg.norm([vel.x, vel.y, vel.z]))
 
-            speed_norm = min(max(speed / 5.0, 0.0), 1.0)  # misma escala que dataset
-            spd_tensor = torch.tensor([[speed_norm]], dtype=torch.float32)
+            # Calcula velocidad (m/s) y escálala igual que en train (÷3.5 y clip 0..1)
+            speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
 
+            # ========= 1) Generar máscara HSV desde la RGB capturada =========
+            # OJO: rgb_net está en RGB porque en cb_net hiciste bgr[:, :, ::-1]
+            hsv = cv2.cvtColor(rgb_net, cv2.COLOR_RGB2HSV)
 
+            # mismos rangos que en el script bueno
+            lower_white  = np.array([0, 0, 200])
+            upper_white  = np.array([180, 50, 255])
+
+            lower_yellow = np.array([15, 70, 70])
+            upper_yellow = np.array([35, 255, 255])
+
+            mask_w = cv2.inRange(hsv, lower_white, upper_white)
+            mask_y = cv2.inRange(hsv, lower_yellow, upper_yellow)
+
+            mask = np.zeros_like(rgb_net)
+            mask[mask_w > 0] = (255, 255, 255)   # clase 1
+            mask[mask_y > 0] = (255, 255,   0)   # clase 2
+
+            # ========= 2) Pintar en negro la fila 0–100 =========
+            mask[0:100, :, :] = 0
+
+            # ========= 3) Convertir máscara a tensor =========
+            mask_img = Image.fromarray(mask)                 # PIL image
+            x = infer_tf(mask_img).unsqueeze(0)              # (1,3,66,200)
+            cv2.imshow("Mask (entrada red)", cv2.cvtColor(mask, cv2.COLOR_RGB2BGR))
+            # ========= 4) Canal de velocidad =========
+            speed_plane = torch.full((1,1,66,200), speed_norm,
+                                    dtype=x.dtype, device=x.device)
+
+            x4 = torch.cat([x, speed_plane], dim=1).to(device)  # (1,4,66,200)
+
+            # ========= 5) Inferencia =========
             with torch.no_grad():
-                x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
-                out = model(x, spd_tensor)
+                out = model(x4)
                 steer, throttle = out[0].tolist()
+
             steer    = float(np.clip(steer,    -1.0, 1.0))
-            throttle = float(np.clip(throttle,  0.0, 1.0))
+            throttle = float(np.clip(throttle,  0.0, 0.95))
+            print(f"[NET] speed={speed:.2f} m/s (norm={speed_norm:.2f}) | steer={steer:.3f} | throttle={throttle:.3f}")
+
             vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
             # ===== Obtener posición y proyectar a la imagen cenital =====

@@ -13,7 +13,7 @@ DATASET_ROOT         = "../datasets"
 PATTERN              = os.path.join(DATASET_ROOT, "Deepracer_BaseMap_*", "dataset.csv")
 
 # Modelo CON velocidad (4 canales: 3 RGB + 1 speed)
-MODEL_SPEED_PATH     = "experiments/exp_debug_1763211547/trained_models/pilot_net_model_best_123.pth"
+MODEL_SPEED_PATH     = "experiments/exp_debug_1764593052/trained_models/pilot_net_model_best_123.pth"
 IMAGE_SHAPE_SPEED    = (66, 200, 4)
 
 SPEED_DIVISOR        = 3.5
@@ -125,7 +125,6 @@ def main():
             mse_speed[idx]   += mse_sample_sp
             count_speed[idx] += 1
 
-    # ===========================
     # Cálculo final de %Error
     estados = [1, 2, 3]
     rmse_pct_speed = []
@@ -148,7 +147,6 @@ def main():
     for i, e in enumerate(estados):
         print(f"Estado {e}: count = {counts_final[i]}, MSE = {mse_final_speed[i]:.6f}, %RMSE = {rmse_pct_speed[i]:.2f}%")
 
-    # Guardar en CSV
     out_df = pd.DataFrame({
         "estado": estados,
         "count_samples": counts_final,

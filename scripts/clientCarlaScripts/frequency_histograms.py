@@ -44,17 +44,6 @@ def cargar_split(pattern, nombre_split):
     return df_all
 
 
-def normalizar_sobre_uno(list_of_arrays):
-    """
-    Normaliza todas las curvas de densidad sobre el máximo absoluto global.
-    Devuelve las curvas normalizadas y el factor usado.
-    """
-    max_global = max(arr.max() for arr in list_of_arrays if arr is not None)
-    if max_global <= 0:
-        return list_of_arrays, 1.0
-    return [arr / max_global if arr is not None else None for arr in list_of_arrays], max_global
-
-
 def main():
     # Patrones
     train_pattern = os.path.join(BASE_DIR, "Deepracer_BaseMap_*", "dataset.csv")
@@ -95,42 +84,29 @@ def main():
 
     plt.figure(figsize=(9, 6), dpi=130)
 
-    # Rango común
+    # Rango común en X
     all_steer = np.concatenate([df["steer"].astype(float).to_numpy() for df in splits])
     xs = np.linspace(all_steer.min(), all_steer.max(), 400)
-
-    curvas = []
-    curvas_labels = []
 
     for df, lab, col in zip(splits, labels, colors):
         steer_vals = df["steer"].astype(float).to_numpy()
         if len(steer_vals) < 2:
-            curvas.append(None)
-            curvas_labels.append(lab)
             continue
 
         kde = gaussian_kde(steer_vals)
-        ys = kde(xs)
+        ys = kde(xs) * len(steer_vals)  # densidad * número de muestras = densidad absoluta
 
-        # ✔ Convertir a densidad *absoluta*
-        ys_abs = ys * len(steer_vals)
-        curvas.append(ys_abs)
-        curvas_labels.append(lab)
+        # Normalización INDIVIDUAL sobre el máximo de ESTA curva
+        m = ys.max()
+        if m > 0:
+            ys = ys / m
 
-    # ✔ Normalizar sobre 1 global (máximo de todos los splits)
-    curvas_norm, max_global = normalizar_sobre_uno(curvas)
+        plt.plot(xs, ys, label=f"{lab} (n={len(steer_vals)})", color=col)
 
-    print(f"\n[INFO] STEER max_global = {max_global}")
-
-    # Dibujar
-    for ys, lab, col in zip(curvas_norm, curvas_labels, colors):
-        if ys is None: 
-            continue
-        plt.plot(xs, ys, label=lab, color=col)
-
-    plt.title("STEER – Densidad absoluta normalizada (máx = 1)")
+    plt.title("STEER – Densidad absoluta normalizada (máx = 1 por split)")
     plt.xlabel("Steer")
-    plt.ylabel("Densidad absoluta normalizada")
+    plt.ylabel("Densidad normalizada")
+    plt.ylim(0.0, 1.0)
     plt.grid(alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -145,35 +121,25 @@ def main():
     all_thr = np.concatenate([df["throttle"].astype(float).to_numpy() for df in splits])
     xs = np.linspace(all_thr.min(), all_thr.max(), 400)
 
-    curvas_thr = []
-    curvas_thr_labels = []
-
     for df, lab, col in zip(splits, labels, colors):
         thr_vals = df["throttle"].astype(float).to_numpy()
         if len(thr_vals) < 2:
-            curvas_thr.append(None)
-            curvas_thr_labels.append(lab)
             continue
 
         kde = gaussian_kde(thr_vals)
-        ys = kde(xs)
+        ys = kde(xs) * len(thr_vals)
 
-        ys_abs = ys * len(thr_vals)
-        curvas_thr.append(ys_abs)
-        curvas_thr_labels.append(lab)
+        # Normalización INDIVIDUAL sobre el máximo de ESTA curva
+        m = ys.max()
+        if m > 0:
+            ys = ys / m
 
-    curvas_thr_norm, max_thr = normalizar_sobre_uno(curvas_thr)
+        plt.plot(xs, ys, label=f"{lab} (n={len(thr_vals)})", color=col)
 
-    print(f"[INFO] THROTTLE max_global = {max_thr}")
-
-    for ys, lab, col in zip(curvas_thr_norm, curvas_thr_labels, colors):
-        if ys is None:
-            continue
-        plt.plot(xs, ys, label=lab, color=col)
-
-    plt.title("THROTTLE – Densidad absoluta normalizada (máx = 1)")
+    plt.title("THROTTLE – Densidad absoluta normalizada (máx = 1 por split)")
     plt.xlabel("Throttle")
-    plt.ylabel("Densidad absoluta normalizada")
+    plt.ylabel("Densidad normalizada")
+    plt.ylim(0.0, 1.0)
     plt.grid(alpha=0.3)
     plt.legend()
     plt.tight_layout()

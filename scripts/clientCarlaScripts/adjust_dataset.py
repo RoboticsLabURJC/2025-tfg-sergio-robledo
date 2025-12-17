@@ -9,10 +9,10 @@ import pandas as pd
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            " Global balanced dataset based on the minimum state:"
-            "1) In each dataset, throttle distribution is edited to try and have same amount of each data values."
-            "2) Search lowest value (state,dataset) among states 1/2/3
-            "3) Rewrite each dataset"
+            " Global balanced dataset based on the minimum state:\
+            1) In each dataset, throttle distribution is edited to try and have same amount of each data values.\
+            2) Search lowest value (state,dataset) among states 1/2/3\
+            3) Rewrite each dataset"
         )
     )
     parser.add_argument(

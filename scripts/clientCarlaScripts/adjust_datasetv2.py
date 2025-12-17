@@ -96,7 +96,7 @@ def main():
     )
     parser.add_argument(
         "--pattern",
-        default="../datasets/Deepracer_BaseMap_*/dataset.csv",
+        default="../datasets/validation/Deepracer_BaseMap_*/dataset.csv",
         help="CSV search pattern (default: ../datasets/Deepracer_BaseMap_*/dataset.csv)."
     )
     parser.add_argument("--seed", type=int, default=42, help="seed.")

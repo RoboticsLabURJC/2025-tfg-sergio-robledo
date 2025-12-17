@@ -10,8 +10,8 @@ import pandas as pd
 import os
 
 
-SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/secondrecord/speedtrack08CC.csv"
-LOG_FILE = "/tmp/Track08CCSpeed.log"
+SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/fourthrecord/speedtrack014CCv2.csv"
+LOG_FILE = "/tmp/Track014CCSpeedv2.log"
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
@@ -29,7 +29,6 @@ os.makedirs(MASK_DIR, exist_ok=True)
 if not os.path.exists(CSV_PATH):
     os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
     with open(CSV_PATH, "w", newline="") as f:
-        # 'timestamp' GUARDARÁ sim_time (float).  # <<<
         csv.writer(f).writerow(["rgb_path","mask_path","timestamp","throttle","steer","brake","speed","heading","estado"])
 
 def get_log_duration(client, path: str) -> float:
@@ -65,7 +64,7 @@ def guardar_dato(timestamp, bgr, mask_rgb, throttle, steer, brake, speed, headin
                                 throttle, steer, brake, speed, heading, _estado_from_steer(steer)])
 
 def volcar_speed_secuencial(
-    dataset_csv: str,
+     dataset_csv: str,
     speed_csv: str,
     dst_speed_col: str = "speed",
     src_speed_col: str = "speed_m_s",
@@ -76,7 +75,7 @@ def volcar_speed_secuencial(
     import numpy as np
 
     if not os.path.isfile(dataset_csv):
-        print(f"[ERROR] No existe dataset: {dataset_csv}")
+        print(f"[ERROR] Dataset {dataset_csv} does not exist")
         return
     if not os.path.isfile(speed_csv):
         print(f"[ERROR] No existe CSV de velocidades: {speed_csv}")
@@ -85,62 +84,59 @@ def volcar_speed_secuencial(
     df_dst = pd.read_csv(dataset_csv)
     df_src = pd.read_csv(speed_csv)
 
+    # Checks
     for col in ["timestamp", dst_speed_col]:
         if col not in df_dst.columns:
-            print(f"[ERROR] El dataset no tiene columna '{col}'.")
+            print(f"[ERROR] Dataset does not have col '{col}'.")
             return
     for col in [src_time_col, src_speed_col]:
         if col not in df_src.columns:
-            print(f"[ERROR] El CSV de velocidades no tiene columna '{col}'.")
+            print(f"[ERROR] Speed CSV not containing col'{col}'.")
             return
     if df_dst.empty or df_src.empty:
-        print("[WARN] Dataset o CSV de velocidades vacío.")
+        print("[WARN] Empty Dataset or speed CSV")
         return
 
-    # Convertir a numérico
-    dst_ts = pd.to_numeric(df_dst["timestamp"], errors="coerce")
-    src_ts = pd.to_numeric(df_src[src_time_col], errors="coerce")
-    src_sp = pd.to_numeric(df_src[src_speed_col], errors="coerce")
+    # Num conversion
+    df_dst = df_dst.copy()
+    df_src = df_src.copy()
 
-    # Filtrar NaN en origen
-    valid_src_mask = src_ts.notna() & src_sp.notna()
-    if not valid_src_mask.any():
-        print("[WARN] No hay filas válidas en el CSV de velocidades.")
+    df_dst["timestamp"] = pd.to_numeric(df_dst["timestamp"], errors="coerce")
+    df_src[src_time_col] = pd.to_numeric(df_src[src_time_col], errors="coerce")
+    df_src[src_speed_col] = pd.to_numeric(df_src[src_speed_col], errors="coerce")
+
+    df_dst = df_dst.dropna(subset=["timestamp"])
+    df_src = df_src.dropna(subset=[src_time_col, src_speed_col])
+
+    if df_dst.empty or df_src.empty:
+        print("[WARN] NaN data filtered and no data left.")
         return
 
-    # 1) Tomamos el PRIMER tiempo válido del CSV de velocidad 
-    first_src_idx = np.where(valid_src_mask.to_numpy())[0][0]
-    first_src_time = float(src_ts.iloc[first_src_idx])
+    # Time order
+    df_dst_sorted = df_dst.sort_values("timestamp").reset_index(drop=False)
+    df_src_sorted = df_src.sort_values(src_time_col).reset_index(drop=True)
 
-    # 2) Buscamos en dataset el índice cuyo timestamp sea MÁS CERCANO
-    if dst_ts.notna().sum() == 0:
-        print("[ERROR] Todos los 'timestamp' del dataset son NaN.")
-        return
+    # Asign speed using nearest neighbor
+    merged = pd.merge_asof(
+        df_dst_sorted,
+        df_src_sorted[[src_time_col, src_speed_col]],
+        left_on="timestamp",
+        right_on=src_time_col,
+        direction="nearest"
+    )
 
-    # Índice de encaje por mínima diferencia absoluta
-    diffs = np.abs(dst_ts - first_src_time)
-    anchor_dst_idx = int(diffs.idxmin())
+    # Copy speed col to original dataframe
+    df_dst.loc[merged["index"], dst_speed_col] = merged[src_speed_col].values
 
-    # 3) Preparar los vectores a copiar
-    src_v = src_sp.iloc[first_src_idx:].to_numpy(dtype=float)
-
-    # 4) Copiado secuencial desde el anchor en dataset
-    n_dst = len(df_dst) - anchor_dst_idx
-    n_src = len(src_v)
-    n = min(n_dst, n_src)
-
-    if n <= 0:
-        print("[WARN] No hay espacio para acoplar velocidades.")
-        return
-
-    df_dst.loc[anchor_dst_idx:anchor_dst_idx + n - 1, dst_speed_col] = src_v[:n]
+    # Guardar
     df_dst.to_csv(dataset_csv, index=False)
 
-    # 5) Info
-    print("[INFO] Encaje por timestamp:")
-    print(f"  - first_src_time (vel CSV) = {first_src_time:.6f}")
-    print(f"  - timestamp(dataset)[anchor] = {dst_ts.iloc[anchor_dst_idx]:.6f} (idx={anchor_dst_idx})")
-    print(f"[OK] Copiadas {n} velocidades en '{dst_speed_col}' desde {anchor_dst_idx} (secuencial, tiempos ignorados tras el ancla).")
+    # Info
+    time_diff = np.abs(merged["timestamp"] - merged[src_time_col])
+    print(f"  - Nº rows dataset:    {len(df_dst)}")
+    print(f"  - Nº rows speed_csv:  {len(df_src)}")
+    print(f"  - Av. time dif:   {time_diff.mean():.4f} s")
+    print(f"  - Max. diff in time:     {time_diff.max():.4f} s")
 
 
 def main():
@@ -157,11 +153,9 @@ def main():
     # Ver info del log
     print(client.show_recorder_file_info(LOG_FILE, False))
 
-    # Lanzar replay y refrescar world
+   
     client.replay_file(LOG_FILE, 0.0, 0.0, 0)
     world = client.get_world()
-
-    # (En replay no aplicamos modo síncrono)
     weather = carla.WeatherParameters(
         cloudiness=80.0, precipitation=0.0, sun_altitude_angle=90.0,
         fog_density=0.0, wetness=0.0

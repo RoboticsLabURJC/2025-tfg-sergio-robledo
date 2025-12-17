@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Recorte GLOBAL: deja un total objetivo repartido uniformemente por estado (1/2/3)
-# y reescribe cada dataset.csv con su porción correspondiente.
 
 import os
 import glob
@@ -8,7 +6,7 @@ import argparse
 import shutil
 import pandas as pd
 import numpy as np
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 def select_rows_mode(df: pd.DataFrame, n: int, mode: str, seed: int) -> pd.DataFrame:
     """Selecciona n filas del DataFrame df según el modo."""
@@ -25,7 +23,8 @@ def select_rows_mode(df: pd.DataFrame, n: int, mode: str, seed: int) -> pd.DataF
         return df.iloc[-n:].copy().reset_index(drop=True)
 
     if mode == "random":
-        return df.sample(n=n, random_state=seed).sort_index().reset_index(drop=True)
+        # Aleatorio dentro de este df, con semilla
+        return df.sample(n=n, random_state=seed).reset_index(drop=True)
 
     if mode == "stride":
         idx = np.linspace(0, total - 1, n)
@@ -36,10 +35,11 @@ def select_rows_mode(df: pd.DataFrame, n: int, mode: str, seed: int) -> pd.DataF
     # por defecto, first
     return df.iloc[:n].copy()
 
+
 def compute_uniform_quotas(counts: Dict[int, int], target_total: int) -> Dict[int, int]:
     """
-    Reparte target_total uniformemente entre los estados presentes (1/2/3).
-    Si algún estado no tiene suficientes filas, se capea y se reparte el sobrante.
+    Calcula cuotas UNIFORMES por estado (1/2/3) sumando target_total en total.
+    Es la parte "totalmente plana".
     """
     present_states = [c for c in [1,2,3] if counts.get(c, 0) > 0]
     if not present_states:
@@ -85,23 +85,92 @@ def compute_uniform_quotas(counts: Dict[int, int], target_total: int) -> Dict[in
         quotas.setdefault(c, 0)
     return quotas
 
+
+def compute_per_file_quotas_for_state(
+    counts_per_file: Dict[str, int],
+    quota_c: int
+) -> Dict[str, int]:
+    """
+    Reparte la cuota quota_c de un estado concreto entre ficheros,
+    de forma PROPORCIONAL a lo que tenía cada fichero.
+    """
+    # Filtramos solo ficheros con al menos 1 muestra
+    valid = {src: cnt for src, cnt in counts_per_file.items() if cnt > 0}
+    if not valid or quota_c <= 0:
+        return {src: 0 for src in counts_per_file.keys()}
+
+    total_c = sum(valid.values())
+    if quota_c >= total_c:
+        # No hace falta recortar: nos quedamos TODO
+        return {src: cnt for src, cnt in counts_per_file.items()}
+
+    # Asignación base proporcional
+    raw = {src: quota_c * (cnt / total_c) for src, cnt in valid.items()}
+    base = {src: int(np.floor(v)) for src, v in raw.items()}
+    assigned = sum(base.values())
+    remaining = quota_c - assigned
+
+    # Ordenamos por parte fraccionaria descendente para repartir el resto
+    fracs: List[Tuple[float, str]] = sorted(
+        [(raw[src] - base[src], src) for src in valid.keys()],
+        reverse=True
+    )
+
+    i = 0
+    # Repartimos el resto sin superar la capacidad de ningún fichero
+    while remaining > 0 and fracs:
+        frac, src = fracs[i % len(fracs)]
+        if base[src] < valid[src]:
+            base[src] += 1
+            remaining -= 1
+        i += 1
+        if i > 10_000:  # por seguridad, no debería llegar aquí
+            break
+
+    # Aseguramos que ninguna cuota supere el número real de filas
+    for src, cnt in valid.items():
+        if base[src] > cnt:
+            base[src] = cnt
+
+    # Para ficheros sin muestras de ese estado, cuota 0
+    quotas_per_file = {src: 0 for src in counts_per_file.keys()}
+    quotas_per_file.update(base)
+    return quotas_per_file
+
+
 def main():
     ap = argparse.ArgumentParser(
-        description="Recorta GLOBALMENTE (sobre todos los CSV) hasta un total objetivo, uniforme por estados 1/2/3, y reescribe cada dataset.csv con su porción."
+        description=(
+            "Recorta GLOBALMENTE (sobre todos los CSV) hasta un total objetivo, "
+            "con cuotas por estados 1/2/3. La 'fuerza' del aplanamiento se controla "
+            "con --flatten-alpha: 1.0 = muy plano, 0.0 = casi como el original."
+        )
     )
     ap.add_argument("--pattern",
                     default="../datasets/validation/Deepracer_BaseMap_*/dataset.csv",
                     help="Patrón de búsqueda (por defecto: ../datasets/validation/Deepracer_BaseMap_*/dataset.csv)")
-    ap.add_argument("--target-total", type=int, default=1400,
-                    help="Número total de filas objetivo (global, sumando todos los CSV).")
-    ap.add_argument("--keep", choices=["first", "last", "random", "stride"], default="first",
-                    help="Estrategia de selección dentro de cada estado global: first|last|random|stride")
-    ap.add_argument("--seed", type=int, default=42, help="Semilla cuando --keep=random")
+    ap.add_argument("--target-total", type=int, default=1462,
+                    help="Número total de filas objetivo (global, sumando todos los CSV, sólo estados 1/2/3).")
+    ap.add_argument("--keep", choices=["first", "last", "random", "stride"], default="random",
+                    help="Estrategia de selección dentro de cada estado por fichero (por defecto: random).")
+    ap.add_argument("--seed", type=int, default=42, help="Semilla base.")
+    ap.add_argument("--flatten-alpha", type=float, default=0.5,
+                    help=(
+                        "Fuerza del aplanamiento global por estado en [0,1]. "
+                        "1.0 = completamente plano (todos los estados igual), "
+                        "0.0 = nada de aplanamiento (solo recorte global). "
+                        "Por defecto: 0.5."
+                    ))
     ap.add_argument("--dry-run", action="store_true", help="No escribe cambios, solo muestra acciones.")
     ap.add_argument("--no-backup", action="store_true", help="No crear copia .bak antes de sobrescribir.")
     ap.add_argument("--drop-non123", action="store_true",
                     help="Si se indica, se eliminan filas con estado fuera de {1,2,3}. Por defecto se PRESERVAN.")
     args = ap.parse_args()
+
+    # Clamp por seguridad
+    alpha = max(0.0, min(1.0, args.flatten_alpha))
+    if alpha != args.flatten_alpha:
+        print(f"[INFO] flatten-alpha ajustado a {alpha} (estaba fuera de [0,1]).")
 
     paths = sorted(glob.glob(args.pattern))
     if not paths:
@@ -118,7 +187,6 @@ def main():
             continue
         if df.empty:
             print(f"[WARN] {p} vacío.")
-            # aún así lo tendremos en cuenta para escribir luego (posible vacío final)
         df["_src"] = p
         df["_rowid"] = range(len(df))
         dfs.append(df)
@@ -140,7 +208,7 @@ def main():
     df_123 = full[mask_123].copy()
     df_rest = full[~mask_123].copy()  # para preservar si no se usa --drop-non123
 
-    # Conteos globales por estado
+    # Conteos globales por estado (originales)
     counts = {c: int((pd.to_numeric(df_123["estado"], errors="coerce") == c).sum()) for c in [1,2,3]}
     total_disponible = sum(counts.values())
     print("Conteos globales (1/2/3):", counts, "| total 1/2/3 =", total_disponible)
@@ -154,28 +222,76 @@ def main():
     if target_total < args.target_total:
         print(f"[INFO] target_total ajustado a {target_total} (no hay suficientes filas 1/2/3).")
 
-    # Calcular cuotas uniformes por estado
-    quotas = compute_uniform_quotas(counts, target_total)
-    print("Cuotas objetivo por estado:", quotas, "| suma =", sum(quotas.values()))
+    # Cuotas UNIFORMES por estado (la versión "totalmente plana")
+    quotas_uniform = compute_uniform_quotas(counts, target_total)
 
-    # Seleccionar filas por estado
-    df_selected_parts: List[pd.DataFrame] = []
+    # Mezcla entre cuotas uniformes y distribución original según alpha
+    #   alpha = 1 -> quotas_final = quotas_uniform  (máxima planitud)
+    #   alpha = 0 -> quotas_final ≈ counts (sólo se recorta si target_total < total)
+    sum_counts = sum(counts.values())
+    quotas_final = {}
+    for c in [1, 2, 3]:
+        # proporción original de este estado
+        if sum_counts > 0:
+            target_orig_c = counts[c] / sum_counts * target_total
+        else:
+            target_orig_c = 0.0
+
+        q_uniform = quotas_uniform.get(c, 0)
+        q_mix = (1.0 - alpha) * target_orig_c + alpha * q_uniform
+        q_mix = int(round(q_mix))
+
+        # No puede superar lo que hay disponible de ese estado
+        q_mix = min(q_mix, counts[c])
+        quotas_final[c] = q_mix
+
+    print("Cuotas objetivo GLOBAL por estado (mezcla original/plano):", quotas_final,
+          "| suma =", sum(quotas_final.values()))
+    print(f"[INFO] flatten-alpha = {alpha} (1.0 = muy plano, 0.0 = casi original)")
+
+    grouped_by_src = df_123.groupby("_src", dropna=False)
+    # counts_per_file[state][src] = nº filas de ese estado en ese fichero
+    counts_per_file: Dict[int, Dict[str, int]] = {1: {}, 2: {}, 3: {}}
+    for src, g in grouped_by_src:
+        est_local = pd.to_numeric(g["estado"], errors="coerce").astype("Int64")
+        for c in [1,2,3]:
+            counts_per_file[c][src] = int((est_local == c).sum())
+
+    # ---- Seleccionar filas por fichero y estado según cuotas PROPORCIONALES ----
+    selected_parts: List[pd.DataFrame] = []
     for c in [1,2,3]:
-        n_c = quotas.get(c, 0)
-        if n_c <= 0:
+        quota_c = quotas_final.get(c, 0)
+        if quota_c <= 0:
             continue
-        df_c = df_123[pd.to_numeric(df_123["estado"], errors="coerce") == c]
 
-        # Modo de selección global (entre todos los ficheros) para este estado
-        df_sel_c = select_rows_mode(df_c, n_c, args.keep, args.seed)
-        df_selected_parts.append(df_sel_c)
+        # Cuotas para cada fichero dentro del estado c
+        per_file_quota = compute_per_file_quotas_for_state(counts_per_file[c], quota_c)
+        print(f"\nEstado {c}: cuota global={quota_c} -> cuotas por fichero:")
+        for src in sorted(per_file_quota.keys()):
+            print(f"  {os.path.basename(src)}: {per_file_quota[src]} / {counts_per_file[c].get(src,0)}")
 
-    if df_selected_parts:
-        df_selected = pd.concat(df_selected_parts, ignore_index=True)
+        # Selección en cada fichero
+        for src, group in grouped_by_src:
+            n_q = per_file_quota.get(src, 0)
+            if n_q <= 0:
+                continue
+
+            g_state = group[pd.to_numeric(group["estado"], errors="coerce").astype("Int64") == c]
+            if g_state.empty:
+                continue
+
+            # Semilla distinta pero reproducible por (src, estado)
+            seed_local = args.seed + (hash((src, c)) % 10_000)
+
+            df_sel = select_rows_mode(g_state, n_q, args.keep, seed_local)
+            selected_parts.append(df_sel)
+
+    if selected_parts:
+        df_selected = pd.concat(selected_parts, ignore_index=True)
     else:
         df_selected = df_123.iloc[0:0].copy()
 
-    # Barajar globalmente (opcional) para no sesgar por orden
+    # Barajar globalmente para no sesgar por orden
     df_selected = df_selected.sample(frac=1.0, random_state=args.seed).reset_index(drop=True)
 
     # Si no se pide eliminar non123, los preservamos íntegros
@@ -183,16 +299,15 @@ def main():
         final = df_selected
     else:
         final = pd.concat([df_selected, df_rest], ignore_index=True)
-        # Mantener resto tal cual (opcionalmente, podrías barajar)
         final = final.reset_index(drop=True)
 
-    # Ahora repartimos por archivo de origen y guardamos
-    grouped = final.groupby("_src", dropna=False)
+    # Repartimos por archivo de origen y guardamos
+    grouped_final = final.groupby("_src", dropna=False)
 
     print("\nResumen por archivo (previo a escribir):")
     for p in paths:
-        if p in grouped.groups:
-            sub = grouped.get_group(p)
+        if p in grouped_final.groups:
+            sub = grouped_final.get_group(p)
             est = pd.to_numeric(sub.get("estado", pd.Series(dtype="float64")), errors="coerce").astype("Int64")
             c1 = int((est == 1).sum()); c2 = int((est == 2).sum()); c3 = int((est == 3).sum())
             print(f" - {os.path.basename(p)}: total={len(sub)} | (1/2/3)= {c1}/{c2}/{c3}")
@@ -205,15 +320,14 @@ def main():
 
     # Escribir cada archivo
     for p in paths:
-        if p in grouped.groups:
-            out = grouped.get_group(p).copy()
+        if p in grouped_final.groups:
+            out = grouped_final.get_group(p).copy()
         else:
             # Si no quedó nada para este archivo, escribimos CSV vacío con las mismas columnas que tenía originalmente
             try:
                 orig = pd.read_csv(p)
                 out = orig.iloc[0:0].copy()
             except Exception:
-                # fallback
                 out = pd.DataFrame()
 
         # Quitar columnas auxiliares

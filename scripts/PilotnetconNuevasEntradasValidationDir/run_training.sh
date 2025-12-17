@@ -65,9 +65,14 @@ python "$TRAIN_SCRIPT" \
   "${DATA_DIRS[@]}" \
   "${TEST_DIRS[@]}" \
   "${VALID_DIRS[@]}" \
-  --num_epochs 100 \
+  --num_epochs 120 \
   --batch_size 128 \
   --lr 3e-4 \
   --base_dir "$EXPERIMENT_NAME" \
-  --comment "Sin augs · Con shuffle · sin mirror" \
+  --comment "Label-only aug +80% (train+val)" \
+  --label_aug \
+  --label_aug_ratio 0.8 \
+  --steer_aug_std 0.02 \
+  --throttle_aug_std 0.02 \
+  --label_aug_in_val \
   --print_terminal

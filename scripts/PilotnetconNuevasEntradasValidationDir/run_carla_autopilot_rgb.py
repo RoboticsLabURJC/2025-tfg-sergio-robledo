@@ -8,22 +8,13 @@ from utils.pilotnet import PilotNet
 from PIL import Image
 
 
-# estado para velocidad por diferencias 
-prev_pos = None          # np.array([x,y,z]) del paso anterior
-ema_v    = None          # filtro EMA para suavizar
-ALPHA_V  = 0.2           # 0..1, más alto = menos suave
-
-
-inithelp = True
-prev_timeglobal_var = 0.0
-last_error_steer = 0.0
-Kp_steer, Kd_steer = 0.1, 1e-5
-Kp_throttle = 0.02
-
-MODEL_PATH = "experiments/exp_debug_1762968577/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1765480719/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 4)
-model = PilotNet(image_shape, num_labels=2)
-model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+model = PilotNet(image_shape, num_labels=2).to(device)
+state = torch.load(MODEL_PATH, map_location=device)
+model.load_state_dict(state)
 model.eval()
 
 transform = transforms.Compose([
@@ -90,10 +81,10 @@ vehicle_bp = bp.find(VEHICLE_MODEL)
 # )
 
 #-------------------------TRACK05---------------------------------
-spawn_point = carla.Transform(
-   carla.Location(x=-3.7, y=-4, z=0.5),
-   carla.Rotation(yaw=-120)
-)
+# spawn_point = carla.Transform(
+#    carla.Location(x=-3.7, y=-4, z=0.5),
+#    carla.Rotation(yaw=-120)
+# )
 
 #-------------------TRACK06-gillesvilleneuve----------------------
 # spawn_point = carla.Transform(
@@ -101,11 +92,14 @@ spawn_point = carla.Transform(
 #    carla.Rotation(yaw=180)
 # )
 
+#gillesvilleneuve
+#spawn_point = carla.Transform(carla.Location(x=-1.5, y=33, z=0.5), carla.Rotation(yaw=0))    
+
 #interlagosautodromojosecarlospace
 #spawn_point = carla.Transform(carla.Location(x=-1.5, y=71.5, z=0.5), carla.Rotation(yaw=180))
 
 #nurburgring
-#spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=150))
+spawn_point = carla.Transform(carla.Location(x=-65, y=17.5, z=0.5), carla.Rotation(yaw=-200))
 
 #spafrancorchamps
 #spawn_point = carla.Transform(carla.Location(x=-65, y=94.5, z=0.5), carla.Rotation(yaw=-90))
@@ -115,6 +109,15 @@ spawn_point = carla.Transform(
 
 #lagoseco
 #spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=180-25))
+
+#--------TRACK12--------
+#spawn_point = carla.Transform(carla.Location(x=-29.2, y=-12, z=0.5), carla.Rotation(yaw=-120))
+
+#--------TRACK13--------
+#spawn_point = carla.Transform(carla.Location(x=-60.2, y=-15, z=0.5), carla.Rotation(yaw=-120))
+
+#--------TRACK14--------
+#spawn_point = carla.Transform(carla.Location(x=-37.9, y=-28, z=0.5), carla.Rotation(yaw=180))
 
 
 
@@ -214,17 +217,11 @@ while running:
     dt    = snap.timestamp.delta_seconds
     
 
-    # cambio por tiempo 
-    if inithelp and sim_t >= WARMUP_SEC:
-        inithelp = False
-
-
     # ESC para salir, SPACE para alternar manualmente
     for e in pygame.event.get():
         if e.type == pygame.QUIT: running = False
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_ESCAPE: running = False
-            if e.key == pygame.K_SPACE:  inithelp = not inithelp
 
     # Coge el último frame disponible (sin bloquear)
     try: last_net   = rgb_net_q.get_nowait()
@@ -241,51 +238,62 @@ while running:
 
     loc = vehicle.get_location()              # carla.Location
     cur_pos = np.array([loc.x, loc.y, loc.z], dtype=float)
-
-    if prev_pos is not None and dt and dt > 0:
-                
-        v = vehicle.get_velocity()
-        speed = float(np.sqrt(v.x**2 + v.y**2 + v.z**2))
-        print(speed)
     
-    else:
-        speed = 0.0
-    
-    prev_pos = cur_pos
+    v = vehicle.get_velocity()
+    speed = float(np.sqrt(v.x**2 + v.y**2 + v.z**2))
+    print(speed)
+ 
+ 
 
-    if inithelp:
+    # Calcula velocidad (m/s) y escálala igual que en train (÷5.0 y clip 0..1)
+    speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
 
-        steer = 0.0
-        throttle = 0.6
+    # ========= 1) Generar máscara HSV desde la RGB capturada =========
+    hsv = cv2.cvtColor(rgb_net, cv2.COLOR_RGB2HSV)
 
-    else:
-        # Calcula velocidad (m/s) y escálala igual que en train (÷5.0 y clip 0..1)
-        speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
+    # rangos de colores de tus máscaras (ajusta si quieres)
+    lower_white  = np.array([0, 0, 200])
+    upper_white  = np.array([180, 50, 255])
 
-        # x: (1, 3, 66, 200) imagen 3 canales
-        x = infer_tf(Image.fromarray(rgb_net)).unsqueeze(0)
+    lower_yellow = np.array([15, 70, 70])
+    upper_yellow = np.array([35, 255, 255])
 
-        # === Crear el canal de velocidad (1, 1, 66, 200) ===
-        speed_plane = torch.full((1, 1, 66, 200), speed_norm, dtype=x.dtype, device=x.device)
-        # concatena
-        x4 = torch.cat([x, speed_plane], dim=1)
+    mask_w = cv2.inRange(hsv, lower_white, upper_white)
+    mask_y = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-        with torch.no_grad():
+    mask = np.zeros_like(rgb_net)
+    mask[mask_w > 0] = (255,255,255)   # clase 1
+    mask[mask_y > 0] = (255,255,0)     # clase 2 (como en tu dataset)
 
-            # pasar SOLO un tensor al modelo (este ya reduce 4→3 con el adapter 1×1)
-            out = model(x4)  
-            steer, throttle = out[0].tolist()
+    # ========= 2) Pintar en negro la fila 0–100 =========
+    mask[0:100, :, :] = 0       # <-- ESTO LOS PONE NEGRO
 
-        steer    = float(np.clip(steer,    -1.0, 1.0))
+    # ========= 3) Convertir máscara a tensor =========
+    mask_img = Image.fromarray(mask)                    # PIL image
+    x = infer_tf(mask_img).unsqueeze(0)                 # (1,3,66,200)
 
-        throttle = float(np.clip(throttle,  0.0, 1.0))
+    # ========= 4) Canal de velocidad =========
+    speed_plane = torch.full((1,1,66,200), speed_norm,
+                            dtype=x.dtype, device=x.device)
+
+    x4 = torch.cat([x, speed_plane], dim=1).to(device)  # (1,4,66,200)
+
+
+    with torch.no_grad():
+
+        # pasar SOLO un tensor al modelo (este ya reduce 4→3 con el adapter 1×1)
+        out = model(x4)  
+        steer, throttle = out[0].tolist()
+
+    steer    = float(np.clip(steer,    -1.0, 1.0))
+
+    throttle = float(np.clip(throttle,  0.0, 1.0))
 
     vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
     #print("Throttle: ",throttle," Steer= ",steer)
 
-    # PiP con la cámara en tercera persona (arriba a la derecha)
-    draw_with_pip(last_third, rgb_net)
+    draw_with_pip(last_third, mask)
 
 
 # limpieza

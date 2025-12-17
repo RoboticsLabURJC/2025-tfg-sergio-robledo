@@ -55,7 +55,6 @@ def copy_images_from_second_to_first(second_dir, first_dir):
             dst_file = os.path.join(dst_sub, fname)
 
             if os.path.exists(dst_file):
-                # Si ya existe, no lo tocamos (por si mismo timestamp/nombre)
                 continue
 
             try:
@@ -65,7 +64,7 @@ def copy_images_from_second_to_first(second_dir, first_dir):
 
 # ============================================================
 # 1) Cálculo del n_target GLOBAL entre todos los circuitos
-# ============================================================
+
 def compute_global_target(circuits):
     """
     Recorre TODOS los circuitos y devuelve el mínimo conteo por estado (1/2/3)
@@ -116,7 +115,7 @@ def compute_global_target(circuits):
 # ============================================================
 # 2) Balanceo de un circuito usando n_target_global
 #    y guardando SOLO en el primer CSV de la pareja
-# ============================================================
+
 def balancear_circuito(csv_paths, n_target_global, circuit_id,
                        seed=42, dry_run=False, no_backup=False):
     """
@@ -196,7 +195,7 @@ def balancear_circuito(csv_paths, n_target_global, circuit_id,
               f"{c_local[1]}/{c_local[2]}/{c_local[3]}  | total={len(df_out)}")
         return True
 
-    # Guardamos en el PRIMER CSV de la pareja (absorbe al segundo)
+    # Guardamos en el PRIMER CSV de la pareja
     first_csv = csv_paths[0]
     print(f"  Guardando fusionado en (primer CSV de la pareja): {first_csv}")
 
@@ -225,7 +224,7 @@ def main():
     )
     parser.add_argument(
         "--pattern",
-        default="../datasets/validation/Deepracer_BaseMap_*/dataset.csv",
+        default="../datasets/Deepracer_BaseMap_*/dataset.csv",
         help="Patrón de búsqueda de CSV (por defecto: ../datasets/Deepracer_BaseMap_*/dataset.csv)."
     )
     parser.add_argument("--seed", type=int, default=42, help="Semilla para muestreo reproducible.")
