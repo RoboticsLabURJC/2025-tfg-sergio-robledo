@@ -53,12 +53,11 @@ def _world_to_camera_matrix(cam_actor):
 
 
 def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
-    """
-    Proyección pinhole completa:
-      - coord. UE/CARLA: X adelante, Y derecha, Z arriba
-      - coord. cámara (CARLA): X adelante, Y derecha, Z arriba
-      - imagen: u derecha, v abajo
-    """
+
+    #   - coord. UE/CARLA: X adelante, Y derecha, Z arriba
+    #   - coord. cámara (CARLA): X adelante, Y derecha, Z arriba
+    #   - imagen: u derecha, v abajo
+
     fov_h = float(cam_actor.attributes['fov'])
     K = _build_intrinsics(img_w, img_h, fov_h)
     T_cw = _world_to_camera_matrix(cam_actor)
@@ -235,7 +234,7 @@ def main():
     lap_zone = 0.5
     in_lap_zone = True
 
-    # ===== Crear LOG en experiments/exp_debug_1765363556/logs =====
+    # ===== Crear LOG en experiments/exp_d*/logs =====
     os.makedirs(LOGS_DIR, exist_ok=True)
     ts_name = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = os.path.join(LOGS_DIR, f"infer_log_{ts_name}.csv")

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 # -------------------------
 # CSV helpers
-# -------------------------
+
 def pick_col(df, names):
     for n in names:
         if n in df.columns:
@@ -62,7 +62,7 @@ def robust_clip_speed_mps(s: pd.Series, vmax=20.0) -> pd.Series:
 
 # ------------------------------
 # Nearest Neighbor por posicion
-# -----------------------------
+
 def build_nn_index(P_inf: np.ndarray):
     """
     Devuelve un objeto con método query(P_ref)->(dist, idx)
@@ -132,7 +132,7 @@ def main():
 
     # ----------------------------------------------------------
     # "MSE por punto" (error cuadrático por muestra)
-    # ----------------------------------------------------------
+
     se_x = err_x ** 2
     se_y = err_y ** 2
     se_z = err_z ** 2
@@ -187,7 +187,7 @@ def main():
 
     # ==========================================================
     # PLOTS INTERACTIVOS: hover sobre REF(HUMAN) -> resalta match en INF
-    # ==========================================================
+    
     x_ref, y_ref = df_ref["x"].to_numpy(), df_ref["y"].to_numpy()
     x_inf, y_inf = df_inf["x"].to_numpy(), df_inf["y"].to_numpy()
 
