@@ -21,7 +21,7 @@ for dir in "$DATASET_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --test_dir (opcional)
+# ---- Construir lista de --test_dir
 TEST_DIRS=()
 echo "Buscando datasets de TEST..."
 for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
@@ -31,7 +31,7 @@ for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --val_dir (OBLIGATORIO)
+# ---- Construir lista de --val_dir
 VALID_DIRS=()
 echo "Buscando datasets de VALIDACIÓN..."
 for dir in "$VALID_BASE"/Deepracer_BaseMap_*; do
@@ -60,7 +60,7 @@ echo "   LR         : 1e-4"
 echo "   Experimento: $EXPERIMENT_NAME"
 echo ""
 
-# Ejecutar entrenamiento (sin augs / Con shuffle / sin mirroring)
+# Ejecutar entrenamiento
 python "$TRAIN_SCRIPT" \
   "${DATA_DIRS[@]}" \
   "${TEST_DIRS[@]}" \
