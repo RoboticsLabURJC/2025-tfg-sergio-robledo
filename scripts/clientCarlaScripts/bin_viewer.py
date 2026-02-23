@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ========== CONFIG ==========
 BASE_DIR = "../datasets"
 MAX_POINTS_PER_SPLIT = 20000   # máx puntos por split para el plot
 N_BINS_STEER = 60             # nº de cuadrados en eje X
@@ -15,7 +14,7 @@ CLIP_PERCENTILE = 98          # recortar histograma al p-ésimo percentil
 def load_split(pattern, name):
     paths = sorted(glob.glob(pattern))
     if not paths:
-        print(f"[WARN] No CSV found for {name}.")
+        print(f"No CSV found for {name}.")
         return None
 
     dfs = []
@@ -23,17 +22,17 @@ def load_split(pattern, name):
         try:
             df = pd.read_csv(p)
         except Exception as e:
-            print(f"[SKIP] Cannot read {p}: {e}")
+            print(f"Cannot read {p}: {e}")
             continue
 
         if not {"steer", "throttle"}.issubset(df.columns):
-            print(f"[SKIP] Missing steer/throttle in {p}")
+            print(f"Missing steer/throttle in {p}")
             continue
 
         dfs.append(df[["steer", "throttle"]].copy())
 
     if not dfs:
-        print(f"[WARN] No usable CSV for {name}.")
+        print(f"No usable CSV for {name}.")
         return None
 
     all_df = pd.concat(dfs, ignore_index=True)
@@ -54,13 +53,10 @@ def maybe_subsample(df, max_points, seed=42):
 
 def heatmap_one_split(df, title, cmap):
     """
-    Heatmap (2D hist) steer vs throttle, con:
-      - Y fijo [0,1]
-      - Recorte al percentil CLIP_PERCENTILE
-      - Normalización a [0,1] para oscurecer el mapa
+      - Y fijo [0,1], Recorte al percentil CLIP_PERCENTILE, Normalización a [0,1] para oscurecer el mapa
     """
     if df is None or df.empty:
-        print(f"[PLOT] No data for {title}, skipping.")
+        print(f"No data for {title}, skipping.")
         return
 
     x = pd.to_numeric(df["steer"], errors="coerce")
@@ -72,7 +68,7 @@ def heatmap_one_split(df, title, cmap):
 
     n_valid = len(x)
     if n_valid == 0:
-        print(f"[PLOT] No valid steer/throttle for {title}, skipping.")
+        print(f"No valid steer/throttle for {title}, skipping.")
         return
 
     x_min, x_max = x.min(), x.max()
@@ -94,7 +90,7 @@ def heatmap_one_split(df, title, cmap):
         vmax_clip = 1.0
 
     hist_clipped = np.minimum(hist, vmax_clip)
-    hist_norm = hist_clipped / vmax_clip  # todo en [0,1]
+    hist_norm = hist_clipped / vmax_clip
 
     plt.figure(figsize=(9, 6), dpi=130)
     im = plt.imshow(
@@ -104,7 +100,7 @@ def heatmap_one_split(df, title, cmap):
         extent=[x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]],
         cmap=cmap,
         vmin=0.0,
-        vmax=1.0  # fija el rango 0–1 -> más oscuro
+        vmax=1.0
     )
 
     cbar = plt.colorbar(im)

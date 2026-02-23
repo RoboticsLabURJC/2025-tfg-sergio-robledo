@@ -51,18 +51,18 @@ echo ""
 echo "Iniciando entrenamiento con:"
 echo "   Epochs     : 100"
 echo "   Batch size : 128"
-echo "   LR         : 1e-4"
+echo "   LR         : 3e-4"
 echo "   Experimento: $EXPERIMENT_NAME"
 echo ""
 
-# Ejecutar entrenamiento (sin augs / Con shuffle / sin mirroring)
+# Ejecutar entrenamiento 
 python "$TRAIN_SCRIPT" \
   "${DATA_DIRS[@]}" \
   "${TEST_DIRS[@]}" \
   "${VALID_DIRS[@]}" \
   --num_epochs 100 \
   --batch_size 128 \
-  --lr 1e-4 \
+  --lr 3e-4 \
   --base_dir "$EXPERIMENT_NAME" \
   --comment "Sin augs · Con shuffle · sin mirror" \
   --print_terminal

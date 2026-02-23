@@ -16,7 +16,6 @@ WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 FIXED_DT = 1.0 / FPS
 
-# === Dataset paths ===
 currtime   = str(int(time.time() * 1000))
 DATASET_ID = "Deepracer_BaseMap_" + currtime
 SAVE_DIR   = DATASET_ID
@@ -75,10 +74,10 @@ def volcar_speed_secuencial(
     import numpy as np
 
     if not os.path.isfile(dataset_csv):
-        print(f"[ERROR] Dataset {dataset_csv} does not exist")
+        print(f"Dataset {dataset_csv} does not exist")
         return
     if not os.path.isfile(speed_csv):
-        print(f"[ERROR] No existe CSV de velocidades: {speed_csv}")
+        print(f"No existe CSV de velocidades: {speed_csv}")
         return
 
     df_dst = pd.read_csv(dataset_csv)
@@ -87,14 +86,14 @@ def volcar_speed_secuencial(
     # Checks
     for col in ["timestamp", dst_speed_col]:
         if col not in df_dst.columns:
-            print(f"[ERROR] Dataset does not have col '{col}'.")
+            print(f"Dataset does not have col '{col}'.")
             return
     for col in [src_time_col, src_speed_col]:
         if col not in df_src.columns:
-            print(f"[ERROR] Speed CSV not containing col'{col}'.")
+            print(f"Speed CSV not containing col'{col}'.")
             return
     if df_dst.empty or df_src.empty:
-        print("[WARN] Empty Dataset or speed CSV")
+        print("Empty Dataset or speed CSV")
         return
 
     # Num conversion
@@ -109,7 +108,7 @@ def volcar_speed_secuencial(
     df_src = df_src.dropna(subset=[src_time_col, src_speed_col])
 
     if df_dst.empty or df_src.empty:
-        print("[WARN] NaN data filtered and no data left.")
+        print("NaN data filtered and no data left.")
         return
 
     # Time order
@@ -200,13 +199,7 @@ def main():
     duration  = get_log_duration(client, LOG_FILE)
     end_sim   = start_sim + duration
 
-
     t0_sim = 0.0
-
-    # When writing speed as recording, initial offset is 2 seconds delay so that
-    # the car can spawn
-
-    #START_OFFSET_S = 2.0
     
     try:
         while True:
@@ -235,11 +228,6 @@ def main():
             rel_time = sim_time - t0_sim
 
             print(rel_time)
-            # if rel_time < START_OFFSET_S:
-            #     for e in pygame.event.get():
-            #         if e.type == pygame.QUIT:
-            #             raise KeyboardInterrupt
-            #     continue
 
             # Dibujar
             surface = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
@@ -292,7 +280,7 @@ def main():
                 src_speed_col="speed_m_s"
             )
         except Exception as e:
-            print(f"[ERROR] Acople secuencial de velocidades: {e}")
+            print(f"Acople secuencial de velocidades: {e}")
 
 
 

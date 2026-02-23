@@ -7,18 +7,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
-# ====== BASE DIR ======
+
 BASE_DIR = "../datasets"
-# ======================
+
 
 def cargar_split(pattern, nombre_split):
-    """
-    Carga y concatena todos los dataset.csv que encajen con el patrón.
-    Devuelve DataFrame con throttle/steer o None si no hay nada.
-    """
+
     paths = sorted(glob.glob(pattern))
     if not paths:
-        print(f("[WARN] No se encontraron CSV para {nombre_split}."))
+        print(f("No se encontraron CSV para {nombre_split}."))
         return None
 
     dfs = []
@@ -26,21 +23,21 @@ def cargar_split(pattern, nombre_split):
         try:
             df = pd.read_csv(p)
         except Exception as e:
-            print(f"[SKIP] No se pudo leer {p}: {e}")
+            print(f"No se pudo leer {p}: {e}")
             continue
 
         if not {"throttle", "steer"}.issubset(df.columns):
-            print(f"[SKIP] {p} no tiene throttle/steer.")
+            print(f"{p} no tiene throttle/steer.")
             continue
 
         dfs.append(df[["throttle", "steer"]].copy())
 
     if not dfs:
-        print(f"[WARN] No se pudo usar ningún CSV para {nombre_split}.")
+        print(f"No se pudo usar ningún CSV para {nombre_split}.")
         return None
 
     df_all = pd.concat(dfs, ignore_index=True)
-    print(f"[OK] {nombre_split}: {len(df_all)} filas combinadas.")
+    print(f"{nombre_split}: {len(df_all)} filas combinadas.")
     return df_all
 
 
@@ -78,9 +75,6 @@ def main():
         print("[ERROR] No existen datos en ningún split.")
         return
 
-    # ======================================================
-    # ====================   STEER   =======================
-    # ======================================================
 
     plt.figure(figsize=(9, 6), dpi=130)
 
@@ -109,9 +103,6 @@ def main():
     plt.tight_layout()
     plt.show()
 
-    # ======================================================
-    # ==================   THROTTLE   ======================
-    # ======================================================
 
     plt.figure(figsize=(9, 6), dpi=130)
 

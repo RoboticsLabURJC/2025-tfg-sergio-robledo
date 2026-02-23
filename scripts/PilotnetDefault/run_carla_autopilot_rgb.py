@@ -13,7 +13,7 @@ last_error_steer = 0.0
 Kp_steer, Kd_steer = 0.1, 1e-5
 Kp_throttle = 0.02
 last_net = None
-MODEL_PATH = "experiments/exp_debug_1762781491/trained_models/pilot_net_model_best_123.pth"
+MODEL_PATH = "experiments/exp_debug_1769971700/trained_models/pilot_net_model_best_123.pth"
 image_shape = (66, 200, 3)
 model = PilotNet(image_shape, num_labels=2)
 model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))

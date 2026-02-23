@@ -85,7 +85,7 @@ def main():
     if len(sys.argv) > 1:
         try:
             cam_index = int(sys.argv[1])
-            if cam_index < -1 or cam_index > 11:
+            if cam_index < -1 or cam_index > 14:
                 print("Índice fuera de rango. Usando 1 por defecto.")
                 cam_index = 1
         except ValueError:
@@ -103,6 +103,9 @@ def main():
         9: carla.Location(x=-67, y=120.9,  z=30.0),
         10: carla.Location(x=-67, y=227,  z=33.0),
         11: carla.Location(x=-67, y=317,  z=30.0),
+        12: carla.Location(x=-37.9, y=-10,  z=10.0),
+        13: carla.Location(x=-68, y=-12,  z=8.0),
+        14: carla.Location(x=-37.9, y=-40,  z=15.0),
     }
 
     client = carla.Client('localhost', 2000)
@@ -152,6 +155,17 @@ def main():
     if cam_index == 11:
         #lagoseco
         spawn_point = carla.Transform(carla.Location(x=-67, y=318, z=0.5), carla.Rotation(yaw=-25))
+    if cam_index == 12:
+        #track12
+        spawn_point = carla.Transform(carla.Location(x=-29.2, y=-12, z=0.5), carla.Rotation(yaw=-120))
+    
+    if cam_index == 13:
+        #track13
+        spawn_point = carla.Transform(carla.Location(x=-60.2, y=-15, z=0.5), carla.Rotation(yaw=-120))
+    
+    if cam_index == 14:
+        #track14
+        spawn_point = carla.Transform(carla.Location(x=-37.9, y=-28, z=0.5), carla.Rotation(yaw=-120))
     
 
     vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)

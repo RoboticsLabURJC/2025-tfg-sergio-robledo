@@ -6,12 +6,11 @@ import cv2
 from queue import Queue
 import pandas as pd
 
-SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/fourthrecord/speedtrack09C.csv"
-LOG_FILE  = "/tmp/Track09CSpeed.log"
+SPEED_CSV = "/home/sergior/Downloads/carla_recorder_replay/mispruebas/fourthrecord/speedtrack014CC.csv"
+LOG_FILE  = "/tmp/Track014CCSpeed.log"
 WIDTH, HEIGHT = 800, 600
 FPS = 30.0
 
-# === Dataset paths ===
 currtime   = str(int(time.time() * 1000))
 DATASET_ID = "Deepracer_BaseMap_" + currtime
 SAVE_DIR   = DATASET_ID
@@ -22,7 +21,7 @@ CSV_PATH   = os.path.join(SAVE_DIR, "dataset.csv")
 os.makedirs(RGB_DIR, exist_ok=True)
 os.makedirs(MASK_DIR, exist_ok=True)
 
-# CSV header (añadimos x,y,z)
+# CSV header (x,y,z)
 if not os.path.exists(CSV_PATH):
     os.makedirs(os.path.dirname(CSV_PATH), exist_ok=True)
     with open(CSV_PATH, "w", newline="") as f:
@@ -76,7 +75,6 @@ def guardar_dato(timestamp, bgr, mask_rgb, throttle, steer, brake, speed, headin
             float(x), float(y), float(z)
         ])
 
-# ========= SPEED CSV: nearest neighbor en tiempo real =========
 def load_speed_lookup(speed_csv: str, time_col="sim_time", speed_col="speed_m_s"):
     if not os.path.isfile(speed_csv):
         raise FileNotFoundError(f"No existe SPEED_CSV: {speed_csv}")
@@ -98,9 +96,9 @@ def load_speed_lookup(speed_csv: str, time_col="sim_time", speed_col="speed_m_s"
     return t, v
 
 def nearest_speed(t_arr, v_arr, t_query: float) -> float:
-    """
-    Devuelve v más cercana a t_query usando búsqueda binaria.
-    """
+ 
+    # Devuelve v más cercana a t_query usando búsqueda binaria.
+
     i = int(np.searchsorted(t_arr, t_query))
     if i <= 0:
         return float(v_arr[0])
@@ -113,7 +111,7 @@ def nearest_speed(t_arr, v_arr, t_query: float) -> float:
     return float(v_arr[i])
 
 def main():
-    # ---- cargar speed lookup (una vez) ----
+    
     speed_t, speed_v = load_speed_lookup(SPEED_CSV, time_col="sim_time", speed_col="speed_m_s")
 
     #Offset opcional en caso de tener delay
@@ -236,10 +234,10 @@ def main():
             steer    = float(np.clip(ctrl.steer, -1.0, 1.0))
             brake    = float(ctrl.brake)
 
-            # ===== speed más cercano (en tiempo real) =====
+            # speed más cercano (en tiempo real) 
             speed_mps = nearest_speed(speed_t, speed_v, rel_time + SPEED_TIME_OFFSET)
 
-            # ===== posición mundo =====
+            # posición mundo
             loc = ego.get_location()
             x, y, z = float(loc.x), float(loc.y), float(loc.z)
 

@@ -6,7 +6,7 @@ import shutil
 import pandas as pd
 import numpy as np
 
-# Estructura asumida:
+# Estructura:
 # base_dir/
 #   Deepracer_BaseMap_*/dataset.csv              -> TRAIN
 #   validation/Deepracer_BaseMap_*/dataset.csv   -> VALIDATION
@@ -15,7 +15,7 @@ import numpy as np
 def process_pattern(pattern: str, name: str, thr_min: float, dry_run: bool, no_backup: bool):
     paths = sorted(glob.glob(pattern))
     if not paths:
-        print(f"[WARN] No se encontraron CSV para {name} con patrón: {pattern}")
+        print(f"No se encontraron CSV para {name} con patrón: {pattern}")
         return
 
     print(f"\n=== Procesando {name} ({len(paths)} ficheros) ===")
@@ -23,14 +23,13 @@ def process_pattern(pattern: str, name: str, thr_min: float, dry_run: bool, no_b
         try:
             df = pd.read_csv(p)
         except Exception as e:
-            print(f"[SKIP] No se pudo leer {p}: {e}")
+            print(f"No se pudo leer {p}: {e}")
             continue
 
         if "throttle" not in df.columns:
-            print(f"[SKIP] {p} no tiene columna 'throttle'.")
+            print(f"{p} no tiene columna 'throttle'.")
             continue
 
-        # Convertimos a numérico
         thr = pd.to_numeric(df["throttle"], errors="coerce")
         # Nos quedamos solo con throttle >= thr_min
         mask_keep = thr >= thr_min
@@ -54,13 +53,13 @@ def process_pattern(pattern: str, name: str, thr_min: float, dry_run: bool, no_b
                 shutil.copy2(p, bak)
                 print(f"   backup creado: {bak}")
             except Exception as e:
-                print(f"   [WARN] No se pudo crear backup {bak}: {e}")
+                print(f"   No se pudo crear backup {bak}: {e}")
 
         # Guardar
         try:
             df_out.to_csv(p, index=False)
         except Exception as e:
-            print(f"   [ERROR] Guardando {p}: {e}")
+            print(f"   Guardando {p}: {e}")
 
 
 def main():
@@ -69,7 +68,7 @@ def main():
     )
     ap.add_argument("--base-dir", default="../datasets",
                     help="Directorio base (por defecto ../datasets).")
-    ap.add_argument("--thr-min", type=float, default=0.27,
+    ap.add_argument("--thr-min", type=float, default=0.20,
                     help="Umbral mínimo de throttle (se eliminan filas con throttle < thr-min).")
     ap.add_argument("--dry-run", action="store_true",
                     help="No escribe cambios, solo muestra lo que haría.")
@@ -78,9 +77,9 @@ def main():
     args = ap.parse_args()
 
     base_dir = os.path.abspath(args.base_dir)
-    print(f"[INFO] Base dir: {base_dir}")
-    print(f"[INFO] Umbral mínimo throttle: {args.thr_min}")
-    print(f"[INFO] dry-run: {args.dry_run}, no-backup: {args.no_backup}")
+    print(f"Base dir: {base_dir}")
+    print(f"Umbral mínimo throttle: {args.thr_min}")
+    print(f"dry-run: {args.dry_run}, no-backup: {args.no_backup}")
 
     # Patrones para train / val / test
     train_pattern = os.path.join(base_dir, "Deepracer_BaseMap_*", "dataset.csv")
@@ -91,7 +90,7 @@ def main():
     process_pattern(val_pattern,   "VALIDATION", args.thr_min, args.dry_run, args.no_backup)
     process_pattern(test_pattern,  "TEST", args.thr_min, args.dry_run, args.no_backup)
 
-    print("\n[DONE] Proceso completado.")
+    print("\nProceso completado.")
 
 
 if __name__ == "__main__":

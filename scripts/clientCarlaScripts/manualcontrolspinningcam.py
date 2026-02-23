@@ -29,18 +29,18 @@ pygame.display.set_caption("DeepRacer - RGB y Segmentación Semántica")
 client = carla.Client(HOST, PORT)
 client.set_timeout(5.0)
 world = client.get_world()
-client.load_world('Town01') 
+client.load_world('BaseMap') 
 
 
-weather = carla.WeatherParameters(
-    cloudiness=80.0,
-    precipitation=0.0,
-    sun_altitude_angle=90.0,
-    fog_density=0.0,
-    wetness=0.0
-)
-world.set_weather(weather)
-print("Clima establecido en 'Sunset' (Atardecer)")
+# weather = carla.WeatherParameters(
+#     cloudiness=80.0,
+#     precipitation=0.0,
+#     sun_altitude_angle=90.0,
+#     fog_density=0.0,
+#     wetness=0.0
+# )
+# world.set_weather(weather)
+# print("Clima establecido en 'Sunset' (Atardecer)")
 
 blueprint_library = world.get_blueprint_library()
 vehicle_bp = blueprint_library.find(VEHICLE_MODEL)

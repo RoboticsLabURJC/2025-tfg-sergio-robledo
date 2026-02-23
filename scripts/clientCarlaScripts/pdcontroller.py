@@ -13,19 +13,6 @@ from collections import deque
 
 
 
-# --- Inicialización de la gráfica ---
-# plt.ion()
-# fig, ax = plt.subplots()
-# history_len = 100  
-
-# steer_history = deque([0]*history_len, maxlen=history_len)
-# throttle_history = deque([0]*history_len, maxlen=history_len)
-# line1, = ax.plot(steer_history, label="Steer", color="blue")
-# line2, = ax.plot(throttle_history, label="Throttle", color="green")
-# ax.set_ylim(-1.1, 1.1)
-# ax.legend()
-#..........................................
-
 current_steer = 0.0
 current_throttle = 0.0
 
@@ -198,17 +185,7 @@ while running:
         screen.blit(camera_image_rgb, (0, 0))
 
     pygame.display.flip()
-    # steer_history.append(current_steer)
-    # throttle_history.append(current_throttle)
 
-    # line1.set_ydata(steer_history)
-    # line2.set_ydata(throttle_history)
-    # line1.set_xdata(range(len(steer_history)))
-    # line2.set_xdata(range(len(throttle_history)))
-    # ax.relim()
-    # ax.autoscale_view()
-    # plt.draw()
-    # plt.pause(0.001)
     
 
 camera_rgb.destroy()

@@ -15,7 +15,9 @@ from tqdm import tqdm
 import csv
 from torch.utils.data import Subset
 from torchvision import transforms
-import matplotlib.pyplot as plt 
+import matplotlib
+matplotlib.use("Agg")   
+import matplotlib.pyplot as plt
 
 def r2_from_batches(y_true_list, y_pred_list):
     """
@@ -226,6 +228,11 @@ if __name__ == "__main__":
     epochs_no_improve = 0
     #---------------------------
 
+    best_epoch = None
+    best_train_loss = None
+    best_val_mse = None
+
+
     print("*********** Training Started ************")
     for epoch in range(last_epoch, num_epochs):
         pilotModel.train()
@@ -279,15 +286,20 @@ if __name__ == "__main__":
         writer.add_scalar("performance/valid_loss", val_mse, epoch+1)
         writer_output.writerow([epoch+1, val_mse, val_mae])
 
-        if val_mse < global_val_mse - min_delta:
+        if val_mse < global_val_mse:
             global_val_mse = val_mse
             best_model = deepcopy(pilotModel)
+            best_epoch = epoch + 1
+            best_train_loss = train_loss / len(train_loader)
+            best_val_mse = val_mse
+
             epochs_no_improve = 0
             torch.save(best_model.state_dict(), os.path.join(model_save_dir, f'pilot_net_model_best_{random_seed}.pth'))
             mssg = "Model Improved!!"
         else:
             epochs_no_improve += 1
             mssg = f"Not Improved!! ({epochs_no_improve}/{patience})"
+
 
         # ---- EARLY STOPPING ----
         if epochs_no_improve >= patience:
@@ -387,33 +399,40 @@ if __name__ == "__main__":
     test_r2_steer    = test_r2_dict["steer"]
     test_r2_throttle = test_r2_dict["throttle"]
 
-    writer.add_scalar('performance/Test_MAE', test_mae)
-    writer.add_scalar('performance/Test_MSE', test_mse)
-    writer.add_scalar('performance/Test_MAE_steer', test_mae_steer)
-    writer.add_scalar('performance/Test_MSE_steer', test_mse_steer)
-    writer.add_scalar('performance/Test_MAE_throttle', test_mae_throttle)
-    writer.add_scalar('performance/Test_MSE_throttle', test_mse_throttle)
+    # writer.add_scalar('performance/Test_MAE', test_mae)
+    # writer.add_scalar('performance/Test_MSE', test_mse)
+    # writer.add_scalar('performance/Test_MAE_steer', test_mae_steer)
+    # writer.add_scalar('performance/Test_MSE_steer', test_mse_steer)
+    # writer.add_scalar('performance/Test_MAE_throttle', test_mae_throttle)
+    # writer.add_scalar('performance/Test_MSE_throttle', test_mse_throttle)
 
-    # R² en TensorBoard
-    writer.add_scalar('performance/Test_R2_mean',     test_r2_mean)
-    writer.add_scalar('performance/Test_R2_steer',    test_r2_steer)
-    writer.add_scalar('performance/Test_R2_throttle', test_r2_throttle)
+    # # R² en TensorBoard
+    # writer.add_scalar('performance/Test_R2_mean',     test_r2_mean)
+    # writer.add_scalar('performance/Test_R2_steer',    test_r2_steer)
+    # writer.add_scalar('performance/Test_R2_throttle', test_r2_throttle)
 
 
-    # MSE EN barras
+    # Elegir métricas best (fallback al último epoch si por lo que sea no hubo mejora)
+    train_for_plot = best_train_loss if best_train_loss is not None else avg_train_loss
+    val_for_plot   = best_val_mse   if best_val_mse   is not None else val_mse
+
+    # MSE EN barras (best)
     fig_final_mse = make_bar_figure(
-        {"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse},
-        title="Final MSE/Loss Summary",
+        {"Train(best)": train_for_plot, "Val(best)": val_for_plot, "Test": test_mse},
+        title="Final MSE/Loss Summary (best model)",
         ylabel="MSE / Loss"
     )
     writer.add_figure("bars/final_mse", fig_final_mse, global_step=num_epochs)
     plt.close(fig_final_mse)
 
-    # RMSE EN % en barras
-    final_pct_dict = mse_dict_to_percent_rmse({"Train(last)": avg_train_loss, "Val(last)": val_mse, "Test": test_mse})
-    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final Error Summary")
+    # RMSE EN % en barras (best)
+    final_pct_dict = mse_dict_to_percent_rmse(
+        {"Train(best)": train_for_plot, "Val(best)": val_for_plot, "Test": test_mse}
+    )
+    fig_final_pct = make_bar_figure_percent(final_pct_dict, title="Final Error Summary (best model)")
     writer.add_figure("bars/final_percent_rmse", fig_final_pct, global_step=num_epochs)
     plt.close(fig_final_pct)
+
 
     # R2 en barras
     r2_dict_final = {
@@ -473,8 +492,8 @@ if __name__ == "__main__":
 
 
     # ==== %RMSE finales en csv ====
-    train_pct_rmse_final = (avg_train_loss ** 0.5) * 100.0   # del último epoch
-    val_pct_rmse_final   = (val_mse        ** 0.5) * 100.0   # del último epoch
+    train_pct_rmse_final = (train_for_plot ** 0.5) * 100.0   # del último epoch
+    val_pct_rmse_final   = (val_for_plot        ** 0.5) * 100.0   # del último epoch
     test_pct_rmse_final  = (test_mse       ** 0.5) * 100.0   # del test final
 
     final_csv = os.path.join(base_dir, "percent_rmse.csv")

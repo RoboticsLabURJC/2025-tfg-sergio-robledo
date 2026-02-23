@@ -1,5 +1,5 @@
 #-------------------------------------------------
-#----Visualize dataset generated from replay.py---
+#----Visualizar dataset--------------------------
 #-------------------------------------------------
 
 import os
@@ -76,7 +76,7 @@ def main():
 
     CSV_PATH = os.path.join(BASE_PATH, "dataset.csv")
     if not os.path.isfile(CSV_PATH):
-        print(f"[ERROR] Unable to find dataset.csv en: {CSV_PATH}")
+        print(f"Unable to find dataset.csv en: {CSV_PATH}")
         sys.exit(1)
 
     df = pd.read_csv(CSV_PATH)

@@ -19,7 +19,7 @@ class PilotNetDataset(Dataset):
 
             with open(csv_path, "r") as f:
                 for row in csv.DictReader(f):
-                    img_rel = row["rgb_path"].lstrip("/")
+                    img_rel = row["mask_path"].lstrip("/")
                     img_abs = os.path.join(folder, img_rel)
                     if not os.path.isfile(img_abs):
                         print(f"[Warning] Falta imagen: {img_abs}")
