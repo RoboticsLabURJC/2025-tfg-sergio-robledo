@@ -4,9 +4,9 @@ Este es el directorio que contiene los archivos del DeepRacer para Blender y CAR
 
 ### DeepRacer en Blender
 
-El archivo [DeepRacer.blend](/blender/DeepRacer.blend) contiene el modelo completo del DeepRacer, ya configurado con todos sus enlaces y articulaciones correctamente definidos, utilizando exactamente los mismos nombres que CARLA requerirá posteriormente para identificar correctamente cada parte del vehículo.
+El archivo [DeepRacer.blend](/2025-tfg-sergio-robledo/3dmodels/DeepRacer/blender/DeepRacer.blend) contiene el modelo completo del DeepRacer, ya configurado con todos sus enlaces y articulaciones correctamente definidos, utilizando exactamente los mismos nombres que CARLA requerirá posteriormente para identificar correctamente cada parte del vehículo.
 
-![DeepRacer en Blender](/media/blendernormal.png)
+![DeepRacer en Blender](/2025-tfg-sergio-robledo/3dmodels/DeepRacer/media/blendernormal.png)
 
 Puedes encontrar un tutorial sobre cómo crear toda la configuración desde cero en este [enlace](https://urjc-deepracer.github.io/docs/createdeepracerinblender/), o bien ver el siguiente vídeo en YouTube:
 
@@ -18,9 +18,9 @@ Puedes encontrar un tutorial sobre cómo crear toda la configuración desde cero
 
 ### DeepRacer en CARLA
 
-El archivo [DeepRacer.fbx](/carla/DeepRacer.fbx) ya está preparado para su importación en CARLA. 
+El archivo [DeepRacer.fbx](/2025-tfg-sergio-robledo/3dmodels/DeepRacer/carla/DeepRacer.fbx) ya está preparado para su importación en CARLA. 
 
-![DeepRacer en CARLA](/media/deepracercarlaimported.png)
+![DeepRacer en CARLA](/2025-tfg-sergio-robledo/3dmodels/DeepRacer/media/deepracercarlaimported.png)
 
 Para completar la instalación completa, debes seguir este [tutorial](https://urjc-deepracer.github.io/docs/importdeepracercarla/), o alternativamente puedes ver los siguientes tutoriales (EN / ES / ZH):
 
