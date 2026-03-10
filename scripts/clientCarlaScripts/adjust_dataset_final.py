@@ -33,9 +33,8 @@ def main():
     print(f"\nCircuitos encontrados: {len(csv_paths)}")
     print(f"Objetivo total validation: {TARGET_VAL}\n")
 
-    # ------------------------------------
     # Calcular target por circuito
-    # ------------------------------------
+
     n_circuits = len(csv_paths)
     target_per_circuit = TARGET_VAL // n_circuits
     target_per_state = target_per_circuit // 3
@@ -43,9 +42,9 @@ def main():
     print(f"Objetivo por circuito: {target_per_circuit}")
     print(f"Objetivo por estado dentro de circuito: {target_per_state}\n")
 
-    # ------------------------------------
+
     # Primero verificar mínimos reales
-    # ------------------------------------
+ 
     min_available_state = None
 
     circuit_data = {}
@@ -89,9 +88,9 @@ def main():
     total_final = final_per_state * 3 * n_circuits
     print(f"Total final validation real: {total_final}\n")
 
-    # ------------------------------------
+
     # Balancear cada circuito
-    # ------------------------------------
+
     for p, df in circuit_data.items():
 
         sampled_list = []
