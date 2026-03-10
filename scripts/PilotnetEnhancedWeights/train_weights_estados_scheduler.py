@@ -27,7 +27,6 @@ from utils.pilotnet import PilotNet
 from utils.pilot_net_dataset_with_estado import PilotNetDatasetWithEstado
 
 
-# ----------------------------
 # Métricas y plots
 
 def r2_from_batches(y_true_list, y_pred_list):
@@ -103,9 +102,7 @@ def weighted_mse_with_fixed_weights(pred, target, estados, w_global, debug=False
 
     loss = mse_2_weighted.mean()
 
-    # =========================
-    # DEBUG PRINTS
-    # =========================
+
     if debug:
         print("----- DEBUG LOSS -----")
         print("Estados únicos en batch:", torch.unique(estados).tolist())
@@ -160,9 +157,6 @@ def compute_estado_weights_from_dataset(dataset, device, steer_threshold=0.20, e
     return w, counts.to(device), weights_dict
 
 
-# ----------------------------
-# Args
-# ----------------------------
 def parse_args():
     import argparse
     p = argparse.ArgumentParser()
@@ -248,10 +242,8 @@ def main():
 
     print(f"Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test: {len(test_dataset) if test_dataset else 0}")
 
-    #====================================================
-    # ==========================================
+
     # Calcular pesos globales usando TODO train
-    # ==========================================
     print("\n[INFO] Calculando pesos globales por estado usando TODO el train...")
 
     w_global, counts_global, weights_dict = compute_estado_weights_from_dataset(
@@ -264,7 +256,6 @@ def main():
     print(f"[INFO] Pesos globales: {weights_dict}")
     print("==========================================\n")
 
-    #===================================================
 
     sampler = None
 
@@ -367,9 +358,7 @@ def main():
         for i, (images, labels, estados) in enumerate(train_loader):
             images = images.to(device, non_blocking=True).float()    # (B,4,66,200)
             labels = labels.to(device, non_blocking=True).float()    # (B,2)
-            # =====================================
-            # Online probabilistic label augmentation
-            # =====================================
+ 
             if args.online_label_aug:
                 print("Aplicado DATA AUG en este batch")
                 # máscara probabilística por sample
@@ -389,7 +378,7 @@ def main():
                     labels_aug[:, 1] = torch.clamp(labels_aug[:, 1], 0.0, 1.0)
 
                     labels = labels_aug
-            # =====================================
+
             estados = estados.to(device, non_blocking=True).long()   # (B,)
 
             out = model(images)
@@ -504,7 +493,7 @@ def main():
     model = best_model
     model.eval()
 
-    # ------------------------------
+   
     # VALIDATION EVAL (best model)
 
     print("Check performance on validation (best model)")
@@ -650,7 +639,6 @@ def main():
     writer.add_figure("scatter/val_throttle_gt_vs_pred_banded", fig_scatter_val_th)
     plt.close(fig_scatter_val_th)
 
-    # -----------------------
     # TEST EVAL (best model) 
 
     test_mse = None

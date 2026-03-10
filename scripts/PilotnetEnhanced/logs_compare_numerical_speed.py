@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# -------------------------
-# CSV helpers
 
 def pick_col(df, names):
     for n in names:
@@ -27,7 +25,7 @@ def mse(a: np.ndarray) -> float:
 def rmse(a: np.ndarray) -> float:
     return float(np.sqrt(np.mean(a * a)))
 
-# -------------------------
+
 # Carga REF/INF con posición + velocidad
 
 def load_ref(path: str) -> pd.DataFrame:
@@ -104,7 +102,7 @@ def load_inf(path: str) -> pd.DataFrame:
 
     return df[["x", "y", "z", "v_mps"]]
 
-# ------------------------------
+
 # Nearest Neighbor por posición
 
 def build_nn_index(P_inf: np.ndarray):
@@ -118,7 +116,7 @@ def build_nn_index(P_inf: np.ndarray):
 
     return _SciPyNN(), "scipy.cKDTree"
 
-# -------------------------
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", required=True, help="CSV humano (tiene speed)")
@@ -177,7 +175,7 @@ def main():
         "max_nn_dist": float(np.max(dist_k)),
     }
 
-    print("\n========== COMPARACIÓN VELOCIDAD (NN por POSICIÓN XYZ) ==========")
+    print("\n----COMPARACIÓN VELOCIDAD (NN por POSICIÓN XYZ)----")
     print(f"Método NN: {stats['NN_method']}")
     print(f"N emparejamientos usados: {stats['N_pairs']}")
     if args.nn_max_dist and args.nn_max_dist > 0:
@@ -188,19 +186,19 @@ def main():
     print(f"Mean abs diff={stats['mean_abs']:.4f} m/s")
     print(f"95% abs diff < {stats['p95_abs']:.4f} m/s")
     print(f"Max abs diff={stats['max_abs']:.4f} m/s")
-    print("=================================================================\n")
+    print("-----------------------------------------------------------------\n")
 
     if not args.plot:
         return
 
-    # ==========================================================
+
     ref_i_all = np.arange(len(P_ref), dtype=np.int64)
     ref_i_kept = ref_i_all[keep]  # índice original del ref para cada par válido
 
     x_ref, y_ref = df_ref["x"].to_numpy(), df_ref["y"].to_numpy()
     x_inf, y_inf = df_inf["x"].to_numpy(), df_inf["y"].to_numpy()
 
-    # --- Figura 1: trayectorias XY ---
+    # Figura 1: trayectorias XY 
     fig_xy, ax_xy = plt.subplots(figsize=(8, 6), dpi=110)
     ax_xy.plot(x_ref, y_ref, linewidth=1.0, label="HUMAN (REF)")
     ax_xy.plot(x_inf, y_inf, linewidth=1.0, alpha=0.9, label="INF")
@@ -224,7 +222,7 @@ def main():
     )
     ann.set_visible(False)
 
-    # --- Figura 2: distancia NN por índice HUMAN (solo pares válidos) ---
+    # Figura 2: distancia NN por índice HUMAN (solo pares válidos) 
     fig_d, ax_d = plt.subplots(figsize=(8, 3.8), dpi=110)
     ax_d.plot(ref_i_kept, dist_k, linewidth=1.2, label="distancia NN (m)")
     ax_d.set_title("Distancia al punto más cercano en INF (orden HUMAN)")
@@ -236,7 +234,7 @@ def main():
     vline = ax_d.axvline(ref_i_kept[0], linewidth=1.2, alpha=0.7)
     hl_d = ax_d.scatter([ref_i_kept[0]], [dist_k[0]], s=70, zorder=5)
 
-    # --- Figura 3: velocidades emparejadas ---
+    # Figura 3: velocidades emparejadas
     fig_v, ax_v = plt.subplots(figsize=(8, 3.8), dpi=110)
     ax_v.plot(ref_i_kept, v_ref_k, linewidth=1.2, label="HUMAN speed (m/s)")
     ax_v.plot(ref_i_kept, v_inf_match, linewidth=1.2, label="INF speed@NN (m/s)")
@@ -249,7 +247,7 @@ def main():
     vline_v = ax_v.axvline(ref_i_kept[0], linewidth=1.2, alpha=0.7)
     hl_v = ax_v.scatter([ref_i_kept[0]], [v_ref_k[0]], s=70, zorder=5)
 
-    # --- Figura 4: error de velocidad ---
+    # Figura 4: error de velocidad
     fig_ev, ax_ev = plt.subplots(figsize=(8, 3.8), dpi=110)
     ax_ev.plot(ref_i_kept, err_v, linewidth=1.2, label="err_v = v_INF@NN - v_HUMAN (m/s)")
     ax_ev.plot(ref_i_kept, abs_err_v, linewidth=1.0, alpha=0.8, label="|err_v| (m/s)")

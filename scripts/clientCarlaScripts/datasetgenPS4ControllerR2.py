@@ -26,7 +26,7 @@ current_steer = 0.0
 current_throttle = 0.0
 current_brake = 0.0
 
-# ===== Colas y locks( para coordinar callbacks de CARLA) =====
+# Colas y locks( para coordinar callbacks de CARLA)
 image_queue = deque(maxlen=1)
 control_queue = deque(maxlen=1)
 queue_lock = Lock()
@@ -34,7 +34,7 @@ queue_lock = Lock()
 MAX_IMAGE_AGE_MS = 150
 MAX_DURATION = 90
 
-# ===== Carpetas =====
+# Carpetas 
 currtime = str(int(time.time() * 1000))
 DATASET_ID = "Deepracer_BaseMap_" + currtime
 BASE_DIR = "dataset"
@@ -50,7 +50,7 @@ if not os.path.exists(CSV_PATH):
         writer = csv.writer(f)
         writer.writerow(["rgb_path", "mask_path", "timestamp", "throttle", "steer", "brake", "speed", "heading"])
 
-# ===== Socket =====
+# Socket 
 HOST = 'localhost'
 PORT = 1977
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -60,7 +60,7 @@ print(f"Waiting connection on {HOST}:{PORT}...")
 conn, addr = sock.accept()
 print(f"Connected from {addr}")
 
-# ===== CARLA settings =====
+# CARLA settings
 client = carla.Client('127.0.0.1', 2000)
 client.set_timeout(5.0)
 world = client.get_world()
@@ -116,7 +116,7 @@ if not vehicle:
     exit()
 print("Vehicle spawned")
 
-# ===== Cameras =====
+# Cameras
 # Frontal 
 cam_front_bp = bp_lib.find('sensor.camera.rgb')
 cam_front_bp.set_attribute('image_size_x', '800')
@@ -141,7 +141,7 @@ camera_third = world.spawn_actor(cam_third_bp, cam_third_transform, attach_to=ve
 camera_image_front = None
 camera_image_third = None
 
-# ===== Guardado=====
+# Guardado
 def guardar_dato(timestamp, rgb_img, mask_class_img, accel, steer, brake, speed, heading):
     rgb_name = f"{timestamp}_rgb_{DATASET_ID}.png"
     mask_name = f"{timestamp}_mask_{DATASET_ID}.png"
@@ -155,7 +155,7 @@ def guardar_dato(timestamp, rgb_img, mask_class_img, accel, steer, brake, speed,
         writer = csv.writer(f)
         writer.writerow([rgb_path_rel, mask_path_rel, timestamp, accel, steer, brake, speed, heading])
 
-# ===== Callbacks =====
+# Callbacks
 def cam_front_callback(image):
     global camera_image_front
     with queue_lock:

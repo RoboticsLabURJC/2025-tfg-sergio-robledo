@@ -119,7 +119,7 @@ if not vehicle:
     print("Error al spawnear el vehículo"); raise SystemExit
 print("Vehículo spawneado")
 
-# --- cámaras ---
+#cámaras
 cam_bp_pid = bp.find('sensor.camera.rgb')
 cam_bp_pid.set_attribute('image_size_x', str(WIDTH))
 cam_bp_pid.set_attribute('image_size_y', str(HEIGHT))
@@ -234,7 +234,7 @@ while running:
     except queue.Empty: pass
 
     if pid_on:
-        # ======== PID con la cámara de 140° ========
+        # PD con la cámara de 140°
         rgb_pid = last_pid
         if rgb_pid is None:
             continue
@@ -262,7 +262,7 @@ while running:
         if cx is not None:
             img_cx = w // 2
             error = -100.0 * (img_cx - cx) / img_cx
-            # PID (PD en este caso)
+            # PD
           
             derivative = error - last_error_steer
             steer = np.clip(Kp_steer * error + Kd_steer * derivative, -1.0, 1.0)
@@ -282,8 +282,7 @@ while running:
         draw_with_pip(last_third, vis)
 
     else:
-        # ======== Inferencia con la cámara de 90° ========
-    
+   
         # timeglobal_var = time.time() 
         # fps_toprint = timeglobal_var - prev_timeglobal_var 
         # #print(1/fps_toprint) 

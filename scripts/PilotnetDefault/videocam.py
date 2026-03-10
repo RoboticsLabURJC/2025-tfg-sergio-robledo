@@ -26,7 +26,7 @@ FIXED_DT = 1.0 / FPS
 prev_timeglobal_var = 0.0
 
 def _build_intrinsics(w, h, fov_deg_h):
-    """FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy."""
+    #FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy.
     hfov = math.radians(fov_deg_h)
     fx = w / (2.0 * math.tan(hfov / 2.0))
     # obtener vfov y fy con píxel cuadrado
@@ -39,18 +39,18 @@ def _build_intrinsics(w, h, fov_deg_h):
     return K
 
 def _world_to_camera_matrix(cam_actor):
-    """Extrínseca mundo→cámara (4x4) usando la pose real del sensor."""
+    #Extrínseca mundo→cámara (4x4) usando la pose real del sensor.
     T_wc = np.array(cam_actor.get_transform().get_matrix(), dtype=np.float32)  # cámara→mundo
     T_cw = np.linalg.inv(T_wc)                                                # invertimos: mundo→cámara
     return T_cw
 
 def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
-    """
-    Proyección pinhole completa:
-      - coord. UE/CARLA: X adelante, Y derecha, Z arriba
-      - coord. cámara (CARLA): X adelante, Y derecha, Z arriba
-      - imagen: u derecha, v abajo
-    """
+ 
+
+    # coord. UE/CARLA: X adelante, Y derecha, Z arriba
+    # coord. cámara (CARLA): X adelante, Y derecha, Z arriba
+    # imagen: u derecha, v abajo
+
     # intrínsecas desde el FOV horizontal del sensor
     fov_h = float(cam_actor.attributes['fov'])
     K = _build_intrinsics(img_w, img_h, fov_h)
@@ -208,7 +208,7 @@ def main():
             except queue.Empty: pass
             q.put_nowait(item)
 
-    # ======buffer de estela ======
+    # buffer de estela
     trail_px = deque(maxlen=500)   # guarda últimos puntos proyectados (u,v)
 
     def cb_net(image: carla.Image):
@@ -242,7 +242,7 @@ def main():
             print(1/fps_toprint) 
             prev_timeglobal_var = timeglobal_var
         
-            # ===== Inferencia y control del vehículo =====
+            # Inferencia y control del vehículo
             try: last_net   = rgb_net_q.get_nowait()
             except queue.Empty: pass
 
@@ -256,7 +256,7 @@ def main():
             throttle = float(np.clip(throttle,  0.0, 1.0))
             vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-            # ===== Obtener posición y proyectar a la imagen cenital =====
+            # Obtener posición y proyectar a la imagen cenital
             veh_loc = vehicle.get_location()
             # Proyección (usar FOV y tamaño de la CÁMARA CENITAL)
             u_v = project_world_to_image_precise(
@@ -269,7 +269,7 @@ def main():
                 u, v = u_v
                 trail_px.append((u, v))
 
-            # ===== Pintar estela en el frame cenital =====
+            # Pintar estela en el frame cenital
             if camera_image["data"] is not None:
                 frame = camera_image["data"].copy()  # BGR
 

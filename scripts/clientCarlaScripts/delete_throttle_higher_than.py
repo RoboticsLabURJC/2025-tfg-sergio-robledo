@@ -18,7 +18,7 @@ def process_pattern(pattern: str, name: str, thr_max: float, dry_run: bool, no_b
         print(f"No se encontraron CSV para {name} con patrón: {pattern}")
         return
 
-    print(f"\n=== Procesando {name} ({len(paths)} ficheros) ===")
+    print(f"\nProcesando {name} ({len(paths)} ficheros)")
     for p in paths:
         try:
             df = pd.read_csv(p)

@@ -33,7 +33,7 @@ lap_time = 0.0
 
 
 def _build_intrinsics(w, h, fov_deg_h):
-    """FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy."""
+    # FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy.
     hfov = math.radians(fov_deg_h)
     fx = w / (2.0 * math.tan(hfov / 2.0))
     vfov = 2.0 * math.atan(math.tan(hfov / 2.0) * (h / w))
@@ -46,19 +46,18 @@ def _build_intrinsics(w, h, fov_deg_h):
 
 
 def _world_to_camera_matrix(cam_actor):
-    """Extrínseca mundo→cámara (4x4) usando la pose real del sensor."""
+    # Extrínseca mundo→cámara (4x4) usando la pose real del sensor.
     T_wc = np.array(cam_actor.get_transform().get_matrix(), dtype=np.float32)  # cámara→mundo
     T_cw = np.linalg.inv(T_wc)                                                # mundo→cámara
     return T_cw
 
 
 def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
-    """
-    Proyección pinhole completa:
-      - coord. UE/CARLA: X adelante, Y derecha, Z arriba
-      - coord. cámara (CARLA): X adelante, Y derecha, Z arriba
-      - imagen: u derecha, v abajo
-    """
+    
+    # coord. UE/CARLA: X adelante, Y derecha, Z arriba
+    # coord. cámara (CARLA): X adelante, Y derecha, Z arriba
+    # imagen: u derecha, v abajo
+    
     fov_h = float(cam_actor.attributes['fov'])
     K = _build_intrinsics(img_w, img_h, fov_h)
     T_cw = _world_to_camera_matrix(cam_actor)
@@ -163,7 +162,7 @@ def main():
     client.start_recorder(log_filename, True)
 
 
-    # ===== Cámara cenital + cámara para red =====
+    # Cámara cenital + cámara para red
     blueprint_library = world.get_blueprint_library()
     camera_bp = blueprint_library.find('sensor.camera.rgb')
     camera_bp.set_attribute('image_size_x', '1660')
@@ -191,7 +190,7 @@ def main():
     rgb_net_q = Queue(maxsize=1)
     camera_image = {"data": None}
 
-    # ===== Heatmap =====
+    # Heatmap
     HEAT_H = int(camera_bp.get_attribute('image_size_y').as_int())  # 1000
     HEAT_W = int(camera_bp.get_attribute('image_size_x').as_int())  # 1660
     heatmap_max = np.zeros((HEAT_H, HEAT_W), dtype=np.float32)
@@ -228,7 +227,7 @@ def main():
         transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
     ])
 
-    # ===== Lap init =====
+    # Lap init
     initial_veh_loc = vehicle.get_location()
     init_xy = np.array([initial_veh_loc.x, initial_veh_loc.y], dtype=float)
 
@@ -238,7 +237,7 @@ def main():
     lap_zone = 0.5
     in_lap_zone = True
 
-    # ===== Crear LOG =====
+    # Crear LOG
     os.makedirs(LOGS_DIR, exist_ok=True)
     ts_name = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = os.path.join(LOGS_DIR, f"infer_log_{ts_name}.csv")
@@ -266,7 +265,7 @@ def main():
             clock.tick(30)
             rgb_net = last_net
 
-            # ---- Lap check ----
+            # Lap check 
             now = time.time()
             veh_loc = vehicle.get_location()
             cur_xy = np.array([veh_loc.x, veh_loc.y], dtype=float)
@@ -281,13 +280,13 @@ def main():
             elif dist >= lap_zone:
                 in_lap_zone = False
 
-            # ---- Velocidad ----
+            #  Velocidad 
             vel = vehicle.get_velocity()
             speed_mps = float(np.linalg.norm([vel.x, vel.y, vel.z]))
             speed_kmh = speed_mps * 3.6
             speed_norm = float(np.clip(speed_mps / 3.5, 0.0, 1.0))  # como en train
 
-            # ---- Máscara HSV ----
+            # Máscara HSV
             hsv = cv2.cvtColor(rgb_net, cv2.COLOR_RGB2HSV)
             lower_white  = np.array([0, 0, 200])
             upper_white  = np.array([180, 50, 255])
@@ -309,7 +308,7 @@ def main():
             speed_plane = torch.full((1,1,66,200), speed_norm, dtype=x.dtype, device=x.device)
             x4 = torch.cat([x, speed_plane], dim=1).to(device)
 
-            # ---- Inferencia ----
+            # Inferencia 
             with torch.no_grad():
                 out = model(x4)
                 steer, throttle = out[0].tolist()
@@ -319,7 +318,7 @@ def main():
 
             vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-            # ---- Guardar fila en LOG ----
+            # Guardar fila en LOG 
             t_rel = now - init_time
             log_w.writerow([
                 f"{t_rel:.6f}",
@@ -331,7 +330,7 @@ def main():
                 int(cam_index)
             ])
 
-            # ---- Proyectar a cenital ----
+            #  Proyectar a cenital
             u_v = project_world_to_image_precise(
                 cam_actor=camera,
                 world_point=veh_loc,
@@ -350,7 +349,7 @@ def main():
                     cv2.circle(m, (u, v), heat_brush_radius, 255, thickness=-1)
                     np.maximum(heatmap_max, s_norm, out=heatmap_max, where=(m > 0))
 
-            # ---- Render ----
+            # Render 
             if camera_image["data"] is not None:
                 frame = camera_image["data"].copy()
 

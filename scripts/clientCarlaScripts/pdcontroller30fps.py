@@ -116,7 +116,7 @@ def process_image_front(image):
     camera_img_front = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
-    # === Segmentación por color ===
+    # Segmentación por color
     lower_yellow = np.array([18, 50, 150])
     upper_yellow = np.array([40, 255, 255])
     mask_yellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
@@ -125,12 +125,12 @@ def process_image_front(image):
     upper_white = np.array([180, 30, 255])
     mask_white = cv2.inRange(hsv, lower_white, upper_white)
 
-    # === Máscara de clases 0 (fondo), 1 (blanco), 2 (amarillo) ===
+    # Máscara de clases 0 (fondo), 1 (blanco), 2 (amarillo)
     mask_class = np.zeros_like(mask_white, dtype=np.uint8)
     mask_class[mask_white > 0] = 1
     mask_class[mask_yellow > 0] = 2
 
-    # === Convertir a imagen RGB solo para mostrar ===
+    # Convertir a imagen RGB solo para mostrar
     mask_rgb = np.zeros_like(rgb)
     mask_rgb[mask_class == 1] = [255, 255, 255]  # blanco
     mask_rgb[mask_class == 2] = [255, 255, 0]    # amarillo

@@ -227,7 +227,7 @@ while running:
     except queue.Empty: pass
 
 
-    # ======== Inferencia con la cámara de 90° ========
+    # Inferencia con la cámara de 90°
     rgb_net = last_net
 
     if rgb_net is None:
@@ -245,7 +245,7 @@ while running:
     # Calcula velocidad (m/s) y escálala igual que en train (÷5.0 y clip 0..1)
     speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
 
-    # ========= 1) Generar máscara HSV desde la RGB capturada =========
+    #  Generar máscara HSV desde la RGB capturada 
     hsv = cv2.cvtColor(rgb_net, cv2.COLOR_RGB2HSV)
 
     lower_white  = np.array([0, 0, 200])
@@ -261,14 +261,14 @@ while running:
     mask[mask_w > 0] = (255,255,255)   # clase 1
     mask[mask_y > 0] = (255,255,0)     # clase 2
 
-    # ========= 2) Pintar en negro la fila 0–100 =========
+    # Pintar en negro la fila 0–100 
     mask[0:100, :, :] = 0 
 
-    # ========= 3) Convertir máscara a tensor =========
+    #  Convertir máscara a tensor 
     mask_img = Image.fromarray(mask)                    # PIL image
     x = infer_tf(mask_img).unsqueeze(0)                 # (1,3,66,200)
 
-    # ========= 4) Canal de velocidad =========
+    # Canal de velocidad 
     speed_plane = torch.full((1,1,66,200), speed_norm,
                             dtype=x.dtype, device=x.device)
 

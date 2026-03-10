@@ -20,19 +20,18 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 def r2_from_batches(y_true_list, y_pred_list):
-    """
-    Entradas: 
-    - y_true_list: lista de tensores con las etiquetas de test 
-        (cada tensor es un batch: (batch_size, 2)).
-    - y_pred_list: lista de tensores con las predicciones del modelo
-         (mismas dimensiones).
+ 
+    # - y_true_list: lista de tensores con las etiquetas de test 
+    #     (cada tensor es un batch: (batch_size, 2)).
+    # - y_pred_list: lista de tensores con las predicciones del modelo
+    #      (mismas dimensiones).
 
-    Calcula R² para steer y throttle a partir de listas de tensores (batches).
-    Devuelve un dict con:
-      - "mean": R² medio de steer y throttle
-      - "steer": R² sólo para steer
-      - "throttle": R² sólo para throttle
-    """
+    # Calcula R² para steer y throttle a partir de listas de tensores (batches).
+    # Devuelve un dict con:
+    # - "mean": R² medio de steer y throttle
+    # - "steer": R² sólo para steer
+    # - "throttle": R² sólo para throttle
+
     # Concatenar todos los batches: (N, 2)
     y_true = torch.cat(y_true_list, dim=0)  # labels
     y_pred = torch.cat(y_pred_list, dim=0)  # outputs
@@ -41,12 +40,12 @@ def r2_from_batches(y_true_list, y_pred_list):
     y_pred = y_pred.float()
 
     # (SumSquares) SS_res y SS_tot por componente (col 0 = steer, col 1 = throttle)
-    ss_res = torch.sum((y_true - y_pred) ** 2, dim=0)      # shape (2,)
-    y_mean = torch.mean(y_true, dim=0)                     # shape (2,)
-    ss_tot = torch.sum((y_true - y_mean) ** 2, dim=0)      # shape (2,)
+    ss_res = torch.sum((y_true - y_pred) ** 2, dim=0)
+    y_mean = torch.mean(y_true, dim=0)
+    ss_tot = torch.sum((y_true - y_mean) ** 2, dim=0)
 
     eps = 1e-8 # evitar divisiones por 0
-    r2_vec = 1.0 - ss_res / (ss_tot + eps)                 # shape (2,)
+    r2_vec = 1.0 - ss_res / (ss_tot + eps)
 
     r2_steer    = float(r2_vec[0].item())
     r2_throttle = float(r2_vec[1].item())
@@ -165,7 +164,7 @@ if __name__ == "__main__":
     writer_output = csv.writer(open(csv_log_path, "w"))
     writer_output.writerow(["epoch", "val_mse", "val_mae"])
 
-    # ===== Transform común para todo (train/val/test/inferencia) =====
+    # Transform común para todo (train/val/test/inferencia)
     COMMON_TF = transforms.Compose([
         transforms.Resize((66, 200)),
         transforms.ToTensor(),
@@ -266,7 +265,7 @@ if __name__ == "__main__":
 
         writer.add_scalar("performance/train_loss", train_loss/len(train_loader), epoch+1)
 
-        # ===== Validation =====
+        # Validation
         pilotModel.eval()
         val_mse = 0.0
         val_mae = 0.0
@@ -329,7 +328,7 @@ if __name__ == "__main__":
         fig_epoch_bars_pct, global_step=epoch+1)
         plt.close(fig_epoch_bars_pct)
 
-    # ======= TEST =======
+    # TEST
     pilotModel = best_model
 
     test_dirs = args.test_dir if args.test_dir is not None else args.data_dir[-1:]
@@ -412,7 +411,7 @@ if __name__ == "__main__":
     # writer.add_scalar('performance/Test_R2_throttle', test_r2_throttle)
 
 
-    # Elegir métricas best (fallback al último epoch si por lo que sea no hubo mejora)
+    # Elegir métricas best
     train_for_plot = best_train_loss if best_train_loss is not None else avg_train_loss
     val_for_plot   = best_val_mse   if best_val_mse   is not None else val_mse
 
@@ -450,7 +449,7 @@ if __name__ == "__main__":
     all_gt_throttle   = np.array(all_gt_throttle)
     all_pred_throttle = np.array(all_pred_throttle)
 
-    # ===== Scatter GT vs Pred: STEER =====
+    # Scatter GT vs Pred: STEER
     fig_scatter_steer, ax_s = plt.subplots(figsize=(4,4), dpi=120)
     ax_s.scatter(all_gt_steer, all_pred_steer, alpha=0.3, s=5)
     # Línea y = x
@@ -467,7 +466,7 @@ if __name__ == "__main__":
     writer.add_figure("scatter/test_steer_gt_vs_pred", fig_scatter_steer)
     plt.close(fig_scatter_steer)
 
-    # ===== Scatter GT vs Pred: THROTTLE =====
+    # Scatter GT vs Pred: THROTTLE
     fig_scatter_th, ax_t = plt.subplots(figsize=(4,4), dpi=120)
     ax_t.scatter(all_gt_throttle, all_pred_throttle, alpha=0.3, s=5)
     min_t = min(all_gt_throttle.min(), all_pred_throttle.min())
@@ -491,7 +490,7 @@ if __name__ == "__main__":
     print(f"Test R² -> mean: {test_r2_mean:.4f} | steer: {test_r2_steer:.4f} | throttle: {test_r2_throttle:.4f}")
 
 
-    # ==== %RMSE finales en csv ====
+    # RMSE finales en csv
     train_pct_rmse_final = (train_for_plot ** 0.5) * 100.0   # del último epoch
     val_pct_rmse_final   = (val_for_plot        ** 0.5) * 100.0   # del último epoch
     test_pct_rmse_final  = (test_mse       ** 0.5) * 100.0   # del test final

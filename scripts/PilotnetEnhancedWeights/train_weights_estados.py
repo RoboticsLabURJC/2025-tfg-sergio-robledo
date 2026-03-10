@@ -25,7 +25,6 @@ from utils.pilot_net_dataset_with_estado import PilotNetDatasetWithEstado
 
 
 
-# ----------------------------
 # Métricas y plots
 
 def r2_from_batches(y_true_list, y_pred_list):
@@ -102,7 +101,6 @@ def weighted_mse_with_fixed_weights(pred, target, estados, w_global, debug=False
 
     loss = mse_2_weighted.mean()
 
-    # =========================
     # DEBUG PRINTS
     
     if debug:
@@ -228,10 +226,9 @@ def main():
 
     print(f"Train: {len(train_dataset)} | Val: {len(val_dataset)} | Test: {len(test_dataset) if test_dataset else 0}")
 
-    #====================================================
-    # ==========================================
+ 
     # Calcular pesos globales usando TODO train
-    # ==========================================
+
     print("\n[INFO] Calculando pesos globales por estado usando TODO el train...")
 
     dataset_for_weights =  train_dataset
@@ -244,9 +241,9 @@ def main():
 
     print(f"[INFO] Counts globales: {counts_global.tolist()}")
     print(f"[INFO] Pesos globales: {weights_dict}")
-    print("==========================================\n")
+    print("-----------------------------------------\n")
 
-    #===================================================
+
 
 
     # Loaders
@@ -400,7 +397,6 @@ def main():
     model = best_model
     model.eval()
 
-    # ------------------------------
     # VALIDATION EVAL (best model)
 
     print("Check performance on validation (best model)")
@@ -546,7 +542,7 @@ def main():
     writer.add_figure("scatter/val_throttle_gt_vs_pred_banded", fig_scatter_val_th)
     plt.close(fig_scatter_val_th)
 
-    # -----------------------
+
     # TEST EVAL (best model) 
    
     test_mse = None

@@ -52,9 +52,9 @@ def maybe_subsample(df, max_points, seed=42):
 
 
 def heatmap_one_split(df, title, cmap):
-    """
-      - Y fijo [0,1], Recorte al percentil CLIP_PERCENTILE, Normalización a [0,1] para oscurecer el mapa
-    """
+ 
+    # Y fijo [0,1], Recorte al percentil CLIP_PERCENTILE, Normalización a [0,1] para oscurecer el mapa
+
     if df is None or df.empty:
         print(f"No data for {title}, skipping.")
         return

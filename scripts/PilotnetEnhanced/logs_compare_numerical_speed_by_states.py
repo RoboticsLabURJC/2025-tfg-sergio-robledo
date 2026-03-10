@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# -------------------------
-# Helpers
 
 def pick_col(df, names):
     for n in names:
@@ -20,8 +18,6 @@ def mse(a: np.ndarray) -> float:
 def rmse(a: np.ndarray) -> float:
     return float(np.sqrt(np.mean(a * a)))
 
-# -------------------------
-# Load REF
 
 def load_ref(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -40,9 +36,6 @@ def load_ref(path: str) -> pd.DataFrame:
     df = df.dropna(subset=["x","y","v_mps","estado"]).reset_index(drop=True)
 
     return df[["x","y","z","v_mps","estado"]]
-
-# -------------------------
-# Load INF
 
 def load_inf(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
@@ -63,7 +56,6 @@ def load_inf(path: str) -> pd.DataFrame:
 
     return df[["x","y","z","v_mps","steer"]]
 
-# ------------------------------
 # NN
 
 def build_nn_index(P_inf: np.ndarray):
@@ -77,7 +69,7 @@ def build_nn_index(P_inf: np.ndarray):
 
     return _NN()
 
-# -------------------------
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", required=True)
@@ -103,12 +95,11 @@ def main():
     err_v = v_inf_match - v_ref
     abs_err_v = np.abs(err_v)
 
-    print("\n========== GLOBAL SPEED ==========")
+    print("\nGLOBAL SPEED")
     print(f"MSE={mse(err_v):.6f}")
     print(f"RMSE={rmse(err_v):.6f}")
-    print("==================================\n")
+    print("-------------------------------\n")
 
-    # -------------------------
     # Métricas por estado
   
     estados = [1,2,3]
@@ -118,7 +109,7 @@ def main():
     rmse_vals = []
     box_data = []
 
-    print("========== SPEED BY STATE ==========")
+    print("SPEED BY STATE")
 
     for e in estados:
         mask = estado_ref == e
@@ -141,16 +132,16 @@ def main():
         print(f"  RMSE = {rmse(err_e):.6f}")
         print(f"  Mean abs = {np.mean(abs_e):.4f}")
 
-    print("====================================\n")
+    print("--------------------------------\n")
 
     if not args.plot:
         return
 
     plt.style.use("seaborn-v0_8-whitegrid")
 
-    # -------------------------
+
     # Plot 1: MSE por estado
-    # -------------------------
+
     fig1, ax1 = plt.subplots(figsize=(7,4), dpi=130)
     bars = ax1.bar(labels, mse_vals, color=["#E07A5F","#3D5A80","#81B29A"])
     ax1.set_title("MSE de velocidad por estado")
@@ -162,7 +153,7 @@ def main():
         ax1.text(bar.get_x()+bar.get_width()/2, h, f"{h:.3f}",
                  ha="center", va="bottom", fontsize=10)
 
-    # -------------------------
+
     # Plot 2: RMSE por estado
 
     fig2, ax2 = plt.subplots(figsize=(7,4), dpi=130)
@@ -176,7 +167,7 @@ def main():
         ax2.text(bar.get_x()+bar.get_width()/2, h, f"{h:.3f}",
                  ha="center", va="bottom", fontsize=10)
 
-    # -------------------------
+  
     # Plot 3: Boxplot error absoluto
 
     fig3, ax3 = plt.subplots(figsize=(7,4), dpi=130)

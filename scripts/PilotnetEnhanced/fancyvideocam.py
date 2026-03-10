@@ -26,7 +26,8 @@ FIXED_DT = 1.0 / FPS
 
 
 def _build_intrinsics(w, h, fov_deg_h):
-    """FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy."""
+    #FOV de CARLA es horizontal. Calculamos fx, fy, cx, cy.
+
     hfov = math.radians(fov_deg_h)
     fx = w / (2.0 * math.tan(hfov / 2.0))
     # obtener vfov y fy con píxel cuadrado
@@ -39,18 +40,18 @@ def _build_intrinsics(w, h, fov_deg_h):
     return K
 
 def _world_to_camera_matrix(cam_actor):
-    """Extrínseca mundo→cámara (4x4) usando la pose real del sensor."""
+    # Extrínseca mundo→cámara (4x4) usando la pose real del sensor.
     T_wc = np.array(cam_actor.get_transform().get_matrix(), dtype=np.float32)  # cámara→mundo
     T_cw = np.linalg.inv(T_wc)                                                # invertimos: mundo→cámara
     return T_cw
 
 def project_world_to_image_precise(cam_actor, world_point, img_w, img_h):
-    """
-    Proyección pinhole completa:
-      - coord. UE/CARLA: X adelante, Y derecha, Z arriba
-      - coord. cámara (CARLA): X adelante, Y derecha, Z arriba
-      - imagen: u derecha, v abajo
-    """
+
+
+    # coord. UE/CARLA: X adelante, Y derecha, Z arriba
+    # coord. cámara (CARLA): X adelante, Y derecha, Z arriba
+    # imagen: u derecha, v abajo
+ 
     # intrínsecas desde el FOV horizontal del sensor
     fov_h = float(cam_actor.attributes['fov'])
     K = _build_intrinsics(img_w, img_h, fov_h)
@@ -205,7 +206,7 @@ def main():
     camera_image = {"data": None}  # frame BGR de la cenital
 
 
-    # ===== Heatmap (misma resolución que la cámara cenital: 1000x1660) =====
+    # Heatmap (misma resolución que la cámara cenital: 1000x1660)
     HEAT_H = int(camera_bp.get_attribute('image_size_y').as_int())  # 1000
     HEAT_W = int(camera_bp.get_attribute('image_size_x').as_int())  # 1660
 
@@ -223,7 +224,7 @@ def main():
             except queue.Empty: pass
             q.put_nowait(item)
 
-    # ======buffer de estela ======
+    # buffer de estela
     trail_px = deque(maxlen=500)   # guarda últimos puntos proyectados (u,v)
 
     def cb_net(image: carla.Image):
@@ -266,7 +267,7 @@ def main():
     try:
         while True:
 
-            # ===== Inferencia y control del vehículo =====
+            # Inferencia y control del vehículo
             try: last_net   = rgb_net_q.get_nowait()
             except queue.Empty: pass
 
@@ -305,7 +306,7 @@ def main():
             # Calcula velocidad (m/s) y escálala igual que en train (÷3.5 y clip 0..1)
             speed_norm = float(np.clip(speed / 3.5, 0.0, 1.0))  # [0,1]
 
-            # ========= 1) Generar máscara HSV desde la RGB capturada =========
+            # Generar máscara HSV desde la RGB capturada 
             hsv = cv2.cvtColor(rgb_net, cv2.COLOR_RGB2HSV)
 
             # mismos rangos que en el script bueno
@@ -322,20 +323,20 @@ def main():
             mask[mask_w > 0] = (255, 255, 255)   # clase 1
             mask[mask_y > 0] = (255, 255,   0)   # clase 2
 
-            # ========= 2) Pintar en negro la fila 0–100 =========
+            # Pintar en negro la fila 0–100
             mask[0:100, :, :] = 0
 
-            # ========= 3) Convertir máscara a tensor =========
+            # Convertir máscara a tensor 
             mask_img = Image.fromarray(mask)                 # PIL image
             x = infer_tf(mask_img).unsqueeze(0)              # (1,3,66,200)
             cv2.imshow("Mask (entrada red)", cv2.cvtColor(mask, cv2.COLOR_RGB2BGR))
-            # ========= 4) Canal de velocidad =========
+            # Canal de velocidad 
             speed_plane = torch.full((1,1,66,200), speed_norm,
                                     dtype=x.dtype, device=x.device)
 
             x4 = torch.cat([x, speed_plane], dim=1).to(device)  # (1,4,66,200)
 
-            # ========= 5) Inferencia =========
+            #  Inferencia
             with torch.no_grad():
                 out = model(x4)
                 steer, throttle = out[0].tolist()
@@ -346,7 +347,7 @@ def main():
 
             vehicle.apply_control(carla.VehicleControl(throttle=throttle, steer=steer))
 
-            # ===== Obtener posición y proyectar a la imagen cenital =====
+            # Obtener posición y proyectar a la imagen cenital 
 
             # Proyección (usar FOV y tamaño de la CÁMARA CENITAL)
             u_v = project_world_to_image_precise(
@@ -368,7 +369,7 @@ def main():
                     cv2.circle(heatmap, (u, v), heat_brush_radius, float(intensity), thickness=-1)
 
 
-            # ===== Pintar estela en el frame cenital =====
+            # Pintar estela en el frame cenital
             if camera_image["data"] is not None:
                 frame = camera_image["data"].copy()  # BGR (1000x1660)
 

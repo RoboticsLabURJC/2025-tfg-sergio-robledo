@@ -6,7 +6,6 @@ import pandas as pd
 from collections import defaultdict
 
 
-# -------------------------------------------------
 # Buscar todos los dataset.csv
 
 def find_all_datasets(base_dir):
@@ -17,7 +16,6 @@ def find_all_datasets(base_dir):
     return csv_paths
 
 
-# -------------------------------------------------
 # Obtener ruta de máscara desde una fila
 
 def get_mask_path_from_row(row, csv_path):
@@ -71,11 +69,11 @@ def main():
 
             image_counter[mask_abs].append((csv_path, idx))
 
-    # -------------------------------------------------
+
     # Mostrar resultados
     repeated = {k: v for k, v in image_counter.items() if len(v) > 1}
 
-    print("\n====================")
+    print("\n--------------------")
     print(f"Total imágenes únicas: {len(image_counter)}")
     print(f"Imágenes repetidas    : {len(repeated)}")
 

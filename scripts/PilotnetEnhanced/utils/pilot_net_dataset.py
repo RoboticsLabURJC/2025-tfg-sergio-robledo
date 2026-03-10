@@ -67,7 +67,7 @@ class PilotNetDataset(Dataset):
 
         img = self.transform(img)
 
-        # ===== Canal de velocidad =====
+        # Canal de velocidad
         spd_norm = self.speeds[idx]                    # float en [0,1]
         speed_plane = torch.full((1, 66, 200), spd_norm, dtype=torch.float32)
 

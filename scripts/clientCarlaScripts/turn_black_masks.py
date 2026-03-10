@@ -69,7 +69,7 @@ def process_mask_image(mask_abs_path, rows, dry_run=False):
         print(f"   Guardando {mask_abs_path}: {e}")
 
 def process_dataset_csv(csv_path, rows, dry_run=False):
-    print(f"\n=== Procesando dataset: {csv_path} ===")
+    print(f"\nProcesando dataset: {csv_path}")
     try:
         df = pd.read_csv(csv_path)
     except Exception as e:

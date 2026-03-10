@@ -76,7 +76,6 @@ def interp_xyz(df, t):
     z = (1-a)*float(r0.z) + a*float(r1.z)
     return x, y, z
 
-# -------------------------
 # Projection world -> image
 
 def build_intrinsics(w, h, fov_deg_h):
@@ -110,8 +109,8 @@ def project(cam_actor, loc: carla.Location, w, h):
         return int(u), int(v)
     return None
 
-# -------------------------
-# Your CAM + SPAWN mappings
+
+# CAM + SPAWN mappings
 
 def get_spawn_point(cam_index: int) -> carla.Transform:
     if cam_index == 1:
@@ -167,7 +166,6 @@ def get_cam_rotation(cam_index: int) -> carla.Rotation:
         return carla.Rotation(pitch=-90)
     return carla.Rotation(pitch=-90, yaw=-90)
 
-# -------------------------
 # Drawing helpers
 
 def put_shadow_text(img, text, org, scale=0.9, th=2):
@@ -176,7 +174,7 @@ def put_shadow_text(img, text, org, scale=0.9, th=2):
     cv2.putText(img, text, (x, y), font, scale, (0,0,0), th+3, cv2.LINE_AA)
     cv2.putText(img, text, (x, y), font, scale, (255,255,255), th, cv2.LINE_AA)
 
-# -------------------------
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv_human", required=True)
@@ -241,7 +239,6 @@ def main():
         elif dist >= args.lap_zone:
             state["in_zone"] = False
 
-    # -------------------------
     # ESTELAS
  
     TRAIL_LEN = 100

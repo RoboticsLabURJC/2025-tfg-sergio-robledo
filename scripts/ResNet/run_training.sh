@@ -11,7 +11,7 @@ TRAIN_SCRIPT="train_autom.py"
 # Otros parámetros
 EXPERIMENT_NAME="exp_debug_$(date +%s)"
 
-# ---- Construir lista de --data_dir
+# Construir lista de --data_dir
 DATA_DIRS=()
 echo "Buscando datasets de TRAIN..."
 for dir in "$DATASET_BASE"/Deepracer_BaseMap_*; do
@@ -21,7 +21,7 @@ for dir in "$DATASET_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --test_dir
+# Construir lista de --test_dir
 TEST_DIRS=()
 echo "Buscando datasets de TEST..."
 for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
@@ -31,7 +31,7 @@ for dir in "$TEST_BASE"/Deepracer_BaseMap_*; do
   fi
 done
 
-# ---- Construir lista de --val_dir
+# Construir lista de --val_dir
 VALID_DIRS=()
 echo "Buscando datasets de VALIDACIÓN..."
 for dir in "$VALID_BASE"/Deepracer_BaseMap_*; do

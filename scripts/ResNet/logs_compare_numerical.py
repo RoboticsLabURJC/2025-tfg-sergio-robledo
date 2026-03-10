@@ -11,9 +11,6 @@ import matplotlib.pyplot as plt
 #-------------------------------
 
 
-# -------------------------
-# CSV helpers
-
 def pick_col(df, names):
     for n in names:
         if n in df.columns:
@@ -60,14 +57,13 @@ def to_num(df: pd.DataFrame, cols):
 def robust_clip_speed_mps(s: pd.Series, vmax=20.0) -> pd.Series:
     return s.where((s >= 0.0) & (s <= vmax))
 
-# ------------------------------
 # Nearest Neighbor por posicion
 
 def build_nn_index(P_inf: np.ndarray):
-    """
-    Devuelve un objeto con método query(P_ref)->(dist, idx)
-    Emplea scipy
-    """
+    
+    # Devuelve un objeto con método query(P_ref)->(dist, idx)
+    # Emplea scipy
+    
     #try:
     from scipy.spatial import cKDTree
     tree = cKDTree(P_inf)
@@ -130,8 +126,7 @@ def main():
     dxyz = P_match - P_ref
     err_x, err_y, err_z = dxyz[:, 0], dxyz[:, 1], dxyz[:, 2]
 
-    # ----------------------------------------------------------
-    # "MSE por punto" (error cuadrático por muestra)
+    # MSE por punto (error cuadrático por muestra)
 
     se_x = err_x ** 2
     se_y = err_y ** 2
@@ -158,7 +153,7 @@ def main():
         "p95_dist": float(np.percentile(dist, 95)),
     }
 
-    print("\n========== COMPARACIÓN POR POSICIÓN (nearest neighbor en XYZ) ==========")
+    print("\nCOMPARACIÓN POR POSICIÓN (nearest neighbor en XYZ)")
     print(f"Método NN: {stats['NN_method']}")
     print(f"N emparejamientos: {stats['N_pairs']}")
     print(f"X   MSE={stats['MSE_x']:.6f}  RMSE={stats['RMSE_x']:.6f} (m)")
@@ -169,7 +164,7 @@ def main():
     print(f"Euclidean DIST mean={stats['mean_dist']:.3f}")
     print(f"Percentile 95->  95% of the track is less than {stats['p95_dist']*100:.3f}cm from the human ")
     print(f"Max recorded distance between human and inference={stats['max_dist']:.3f} (m)")
-    print("=======================================================================\n")
+    print("--------------------------------------------------------------------------------\n")
 
     #LLevar a csv
     # out_pairs = pd.DataFrame({
@@ -185,7 +180,6 @@ def main():
     if not args.plot:
         return
 
-    # ==========================================================
     # PLOTS INTERACTIVOS: hover sobre REF(HUMAN) -> resalta match en INF
     
     x_ref, y_ref = df_ref["x"].to_numpy(), df_ref["y"].to_numpy()

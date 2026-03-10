@@ -52,10 +52,10 @@ def eval_estado_accuracy(model, loader, device, thr=0.20):
 
 def r2_from_batches(y_true_list, y_pred_list):
 
-    # Entradas: 
-    # - y_true_list: lista de tensores con las etiquetas de test 
+   
+    # y_true_list: lista de tensores con las etiquetas de test 
     #     (cada tensor es un batch: (batch_size, 2)).
-    # - y_pred_list: lista de tensores con las predicciones del modelo
+    # y_pred_list: lista de tensores con las predicciones del modelo
     #      (mismas dimensiones).
 
     # Calcula R² para steer y throttle a partir de listas de tensores (batches).
@@ -90,11 +90,11 @@ def r2_from_batches(y_true_list, y_pred_list):
     }
 
 def mse_to_rmse(m):
-    """Convierte un MSE escalar en RMSE"""
+    # Convierte un MSE escalar en RMSE
     return float(m) ** 0.5
 
 def mse_to_pct_rmse(m):
-    """Convierte un MSE escalar en %RMSE."""
+    # Convierte un MSE escalar en %RMSE.
     return mse_to_rmse(m) * 100.0
 
 
@@ -159,7 +159,7 @@ def parse_args():
     parser.add_argument("--print_terminal", action="store_true", help="Print progress every 10 steps")
     parser.add_argument("--seed", type=int, default=123, help="Seed")
 
-    # --- Label-only augmentation (expande dataset sin tocar imágenes) ---
+    # --- Label-only augmentation---
     parser.add_argument("--label_aug", action="store_true",
                         help="Activa augmentación SOLO en labels (steer/throttle) y expande el dataset.")
     parser.add_argument("--label_aug_ratio", type=float, default=0.8,
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     writer_output = csv.writer(open(csv_log_path, "w"))
     writer_output.writerow(["epoch", "val_mse", "val_mae"])
 
-    # ===== Transform común para todo (train/val/test/inferencia) =====
+    # Transform común para todo (train/val/test/inferencia)
     COMMON_TF = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.ToTensor(),
@@ -320,7 +320,7 @@ if __name__ == "__main__":
         avg_train_loss = train_loss / len(train_loader)
         writer.add_scalar("performance/train_loss", train_loss/len(train_loader), epoch+1)
 
-        # ===== Validation =====
+        # Validation 
         model.eval()
         val_mse = 0.0
         val_mae = 0.0
@@ -335,7 +335,7 @@ if __name__ == "__main__":
         val_mse /= len(val_loader)
         val_mae /= len(val_loader)
 
-        # ==== Escalar todo a RMSE y %RMSE para curvas ====
+        # Escalar todo a RMSE y %RMSE para curvas 
         train_rmse      = mse_to_rmse(avg_train_loss)
         val_rmse        = mse_to_rmse(val_mse)
         train_pct_rmse  = mse_to_pct_rmse(avg_train_loss)
@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
     model = best_model
 
-    # ======= VALIDATION (best model) =======
+    # VALIDATION (best model)
     print("Check performance on validation (best model)")
     model.eval()
 
@@ -488,13 +488,13 @@ if __name__ == "__main__":
     writer.add_figure("bars/val_r2", fig_val_r2)
     plt.close(fig_val_r2)
 
-    # ===== Scatter GT vs Pred: STEER (VALIDATION) =====
+    # Scatter GT vs Pred: STEER (VALIDATION)
     all_val_gt_steer      = np.array(all_val_gt_steer)
     all_val_pred_steer    = np.array(all_val_pred_steer)
     all_val_gt_throttle   = np.array(all_val_gt_throttle)
     all_val_pred_throttle = np.array(all_val_pred_throttle)
 
-    # === Umbral basado en VALIDATION para THROTTLE ===
+    # Umbral basado en VALIDATION para THROTTLE 
     val_err_throttle     = all_val_pred_throttle - all_val_gt_throttle       # error signed
     val_abs_err_throttle = np.abs(val_err_throttle)                          # |error|
 
@@ -503,9 +503,9 @@ if __name__ == "__main__":
     print(f"[VAL] tau_throttle (percentil 95 abs err) = {tau_throttle:.4f}")
 
 
-    # ===== Scatter GT vs Pred: STEER (VALIDATION) con banda de umbral =====
+    # Scatter GT vs Pred: STEER (VALIDATION) con banda de umbral 
    
-    # 1) Error y umbral
+    # Error y umbral
     val_err_steer     = all_val_pred_steer - all_val_gt_steer
     val_abs_err_steer = np.abs(val_err_steer)
 
@@ -537,7 +537,7 @@ if __name__ == "__main__":
         alpha=0.6, s=8, c='purple', label='below band'
     )
 
-    # 2) Diagonal y banda: y = x ± tau_steer_val
+    # Diagonal y banda: y = x ± tau_steer_val
     x_line = np.linspace(-1.0, 1.0, 100)
     ax_vsb.plot(x_line, x_line, 'r--', linewidth=1, label='y = x')
     ax_vsb.plot(x_line, x_line + tau_steer_val, 'g--', linewidth=1, label=f'y = x + τ ({tau_steer_val:.3f})')
@@ -556,7 +556,7 @@ if __name__ == "__main__":
     plt.close(fig_scatter_val_steer_band)
 
 
-    # ===== Scatter GT vs Pred: THROTTLE (VALIDATION) con banda =====
+    # Scatter GT vs Pred: THROTTLE (VALIDATION) con banda
     inside_val_thr = val_abs_err_throttle <= tau_throttle
     above_val_thr  = val_err_throttle >  tau_throttle
     below_val_thr  = val_err_throttle < -tau_throttle
@@ -602,9 +602,7 @@ if __name__ == "__main__":
     plt.close(fig_scatter_val_th)
 
 
-
-
-    # ======= TEST =======
+    # TEST
     test_dirs = args.test_dir if args.test_dir is not None else args.data_dir[-1:]
     if args.test_dir is not None:
         overlap = set(test_dirs).intersection(set(args.data_dir))
@@ -700,7 +698,7 @@ if __name__ == "__main__":
         val_for_plot   = best_val_mse
         print(f"[INFO] Using BEST epoch {best_epoch} for final Train/Val metrics.")
     else:
-        # Fallback por si no se actualizó nunca (caso muy raro)
+        # Fallback por si no se actualizó nunca
         train_for_plot = avg_train_loss
         val_for_plot   = val_mse
         print("[WARN] best_* metrics not set, using LAST epoch for Train/Val metrics.")
@@ -738,7 +736,7 @@ if __name__ == "__main__":
     all_gt_throttle   = np.array(all_gt_throttle)
     all_pred_throttle = np.array(all_pred_throttle)
 
-    # === Clasificación según error de THROTTLE (TEST), usando tau_throttle de VALIDATION ===
+    # Clasificación según error de THROTTLE (TEST), usando tau_throttle de VALIDATION
     test_err_throttle     = all_pred_throttle - all_gt_throttle
     test_abs_err_throttle = np.abs(test_err_throttle)
 
@@ -751,7 +749,7 @@ if __name__ == "__main__":
           f"(tau_throttle={tau_throttle:.4f})")
 
 
-    # ===== Scatter GT vs Pred: STEER (Test) coloreado según error THROTTLE =====
+    # Scatter GT vs Pred: STEER (Test) coloreado según error THROTTLE
     fig_scatter_steer, ax_s = plt.subplots(figsize=(4,4), dpi=120)
 
     # Dentro de banda de throttle -> verde
@@ -789,7 +787,7 @@ if __name__ == "__main__":
     plt.close(fig_scatter_steer)
 
 
-    # ===== Scatter GT vs Pred: THROTTLE (Test) con banda y colores =====
+    # Scatter GT vs Pred: THROTTLE (Test) con banda y colores
     fig_scatter_th, ax_t = plt.subplots(figsize=(4,4), dpi=120)
 
     ax_t.scatter(
@@ -835,7 +833,7 @@ if __name__ == "__main__":
     print(f"Throt -> MAE: {test_mae_throttle:.4f} | MSE: {test_mse_throttle:.4f}")
     print(f"Test R² -> mean: {test_r2_mean:.4f} | steer: {test_r2_steer:.4f} | throttle: {test_r2_throttle:.4f}")
 
-    # ==== %RMSE finales en csv (usando BEST para Train/Val) ====
+    # %RMSE finales en csv (usando BEST para Train/Val)
     train_pct_rmse_final = (train_for_plot ** 0.5) * 100.0
     val_pct_rmse_final   = (val_for_plot   ** 0.5) * 100.0
     test_pct_rmse_final  = (test_mse       ** 0.5) * 100.0

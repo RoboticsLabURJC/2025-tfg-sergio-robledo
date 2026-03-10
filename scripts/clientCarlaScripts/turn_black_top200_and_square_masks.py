@@ -13,7 +13,6 @@ import numpy as np
 #------------------------------------
 
 
-# -------------------------------------------------
 # Buscar dataset.csv
 
 def find_all_datasets(base_dir):
@@ -24,7 +23,6 @@ def find_all_datasets(base_dir):
     return csv_paths
 
 
-# -------------------------------------------------
 # Obtener ruta de máscara
 
 def get_mask_path_from_row(row, csv_path):
@@ -37,9 +35,6 @@ def get_mask_path_from_row(row, csv_path):
         print(f"[WARN] {csv_path}: fila sin columnas suficientes")
         return None
 
-
-# -------------------------------------------------
-# PROCESAR IMAGEN
 
 def process_mask_image(mask_abs_path, dry_run=False):
 
@@ -69,8 +64,6 @@ def process_mask_image(mask_abs_path, dry_run=False):
         print(f"Tamaño inesperado: {mask_abs_path} ({w}x{h})")
         sys.exit(1)
 
-
-    # -------------------------
     # PASO 1: negro filas 0:100
 
     if arr.ndim == 2:
@@ -81,7 +74,6 @@ def process_mask_image(mask_abs_path, dry_run=False):
         print(f"Dimensión no soportada: {arr.shape}")
         sys.exit(1)
 
-    # -------------------------
     # PASO 2: añadir 200 filas arriba
   
     if arr.ndim == 2:
@@ -94,7 +86,6 @@ def process_mask_image(mask_abs_path, dry_run=False):
 
     final_h, final_w = new_arr.shape[:2]
 
-    # -------------------------
     # COMPROBACIÓN FINAL
 
     if (final_w, final_h) != (800, 800):
@@ -113,11 +104,10 @@ def process_mask_image(mask_abs_path, dry_run=False):
         sys.exit(1)
 
 
-# -------------------------------------------------
 # Procesar CSV
 
 def process_dataset_csv(csv_path, dry_run=False):
-    print(f"\n=== Procesando {csv_path} ===")
+    print(f"\nProcesando {csv_path}")
 
     try:
         df = pd.read_csv(csv_path)
@@ -138,9 +128,6 @@ def process_dataset_csv(csv_path, dry_run=False):
 
         process_mask_image(mask_abs, dry_run=dry_run)
 
-
-# -------------------------------------------------
-# Args
 
 def parse_args():
     ap = argparse.ArgumentParser(
